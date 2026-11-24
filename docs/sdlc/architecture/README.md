@@ -7,159 +7,250 @@
 
 ### ARCH-OVERVIEW · approved · source: architecture:summary
 
-Blogger is a lightweight internal RAG chatbot for ~50 staff: a React 19 SPA, a FastAPI 0.115 API, and a single PostgreSQL 16 + pgvector database holding users, sessions, conversations, documents and chunk embeddings.
+Lightweight RAG chatbot architecture for ~50 staff: React SPA, FastAPI API, Redis-backed indexing worker, PostgreSQL+pgvector, S3, Claude and Voyage AI, all in one AWS account/region.
 
-Admins upload PDF/Word/text/Markdown files; originals go to S3 and a Redis-backed worker extracts, chunks and embeds text with Voyage AI into pgvector. Staff sign in with email/password (opaque bearer-token sessions) and ask questions in a streaming chat; the API does vector similarity retrieval, sends matched passages with the question to the Anthropic Claude API, and returns a grounded, cited answer saved privately to that user's history. SMTP sends invite and password-reset mail. Everything runs in one AWS account in a region near staff; no data-residency regime is stated. Architecture status: approved, version 1.
+A React 19 SPA (own origin) lets signed-in staff chat and lets admins upload/replace/delete documents. A FastAPI 0.115 API (separate origin) handles opaque-token server-side sessions, stores users, roles, conversations, document metadata and pgvector embeddings in one PostgreSQL 16 database, holds original files in S3, and orchestrates RAG answers (embed question via Voyage AI, nearest-passage search in pgvector, streamed cited Claude answer). A Redis-backed worker chunks/embeds documents asynchronously and purges chunks on replace/delete.
 
-### COMP-WEB · approved · source: architecture:components:web
+**Related:** REQ-TECH-STACK, REQ-SERVICES
 
-React 19 responsive SPA covering sign-in, streaming chat with citations, per-user conversation history, and the admin document-management screen.
+### ARCH-COMP-WEB · approved · source: architecture:components.web
 
-Redirects unauthenticated users to sign-in. Sends Authorization: Bearer <token> on every API call. Built with Vite, reads the API base URL from VITE_API_BASE_URL.
+Chat & Admin SPA built in React 19.
 
-**Related:** FLOW-AUTH, FLOW-RAG
+Responsive chat interface, conversation history, admin document management, and sign-in. Stores the opaque session token and sends it as Authorization: Bearer on every API call; redirects unauthenticated users to sign-in.
 
-### COMP-API · approved · source: architecture:components:api
+**Related:** REQ-FEAT-SIGNIN, REQ-FEAT-ASKING, REQ-FEAT-HISTORY, REQ-FEAT-DOCMGMT
 
-FastAPI 0.115 backend orchestrating auth, session validation, RAG retrieval and streaming Claude answer generation, document CRUD, citation assembly, and enqueuing indexing jobs.
+### ARCH-COMP-API · approved · source: architecture:components.api
 
-Enforces role checks (admin vs staff) and per-user history isolation so users cannot access other users' conversations.
+RAG API built in FastAPI 0.115.
 
-**Related:** COMP-DB, COMP-QUEUE, COMP-WEB, FLOW-AUTH, FLOW-UPLOAD, FLOW-RAG
+Handles authentication and session/token management, role checks, document upload to S3 and metadata, enqueuing indexing jobs, retrieval orchestration (embed question, vector search, call Claude), streaming cited answers, and per-user conversation history.
 
-### COMP-WORKER · approved · source: architecture:components:worker
+**Related:** REQ-FEAT-SIGNIN, REQ-FEAT-ASKING, REQ-FEAT-ANSWERS, REQ-FEAT-DOCMGMT, REQ-FEAT-HISTORY
 
-Python RQ worker that consumes the Redis queue, fetches uploaded files from S3, extracts and chunks text, embeds passages via Voyage AI, and stores chunks/vectors in PostgreSQL.
+### ARCH-COMP-WORKER · approved · source: architecture:components.worker
 
-Updates document status to processing/ready/failed. Handles document replace and delete by purging old chunks before re-indexing or removal.
+Indexing Worker: Python RQ worker on the FastAPI codebase.
 
-**Related:** COMP-QUEUE, COMP-S3, COMP-VOYAGE, COMP-DB, FLOW-UPLOAD
+Consumes Redis jobs: extract text from PDF/DOCX/TXT/MD, split into passages, embed each via Voyage AI, store embeddings in pgvector, mark document ready or failed; on replace/delete removes old chunks and embeddings.
 
-### COMP-DB · approved · source: architecture:components:db
+**Related:** REQ-FEAT-INDEXING, REQ-FEAT-DOCMGMT
 
-Single PostgreSQL 16 database with the pgvector extension storing users, roles, sessions, document metadata, chunk embeddings, conversations and messages with citations.
+### ARCH-COMP-DB · approved · source: architecture:components.db
 
-Also performs vector similarity search for RAG retrieval, avoiding the need for a separate vector database at this volume.
+PostgreSQL 16 with pgvector extension is the single datastore.
 
-**Related:** DATA-MODEL
+Stores users, roles, sessions, conversations, messages, citations, document metadata, chunks and their vector embeddings; nearest-neighbour retrieval via pgvector.
 
-### COMP-QUEUE · approved · source: architecture:components:queue
+**Related:** REQ-TECH-STACK
 
-Redis 7 queue holding background jobs for chunking, embedding and deletion so admins are not blocked while a document is processed.
+### ARCH-COMP-REDIS · approved · source: architecture:components.redis
 
-Jobs are consumed by the Indexing Worker; deployed via Amazon ElastiCache for Redis or a redis:7-alpine container.
+Redis 7 (redis:7-alpine) job queue.
 
-**Related:** COMP-WORKER, FLOW-UPLOAD
+Durable background queue carrying chunk/embed and delete-cleanup jobs between the API and the worker.
 
-### COMP-S3 · approved · source: architecture:components:filestore
+**Related:** REQ-FEAT-INDEXING
 
-Amazon S3 durably stores original uploaded PDF, Word, text and Markdown files.
+### ARCH-COMP-S3 · approved · source: architecture:components.s3
 
-Used for re-processing (replace/re-index) and for opening the source document behind a citation via a short-lived link.
+Amazon S3 document store.
 
-**Related:** COMP-WORKER, FLOW-UPLOAD
+Durable storage of original uploaded PDF, Word, text and Markdown files for re-processing and opening the source behind a citation.
 
-### COMP-CLAUDE · approved · source: architecture:components:ai
+**Related:** REQ-FEAT-DOCMGMT
 
-Anthropic Claude API generates grounded, cited answers from the user's question plus retrieved passages.
+### ARCH-COMP-CLAUDE · approved · source: architecture:components.claude
 
-Invoked by the API's RAG flow with streaming; returns an informative error (question retained in thread) if the Claude call fails.
+Anthropic Claude API generates grounded, cited answers.
 
-**Related:** FLOW-RAG
+Generates grounded, cited answers (streamed) from the question and retrieved passages.
 
-### COMP-VOYAGE · approved · source: architecture:components:embed
+**Related:** REQ-FEAT-ANSWERS
 
-Voyage AI Embeddings API converts document passages and user queries into vectors for similarity retrieval.
+### ARCH-COMP-VOYAGE · approved · source: architecture:components.voyage
 
-Used both at indexing time (embedding each passage) and at query time (embedding the question). Missing key or provider errors cause the document to be marked failed with an informative status, never left partially indexed as ready.
+Voyage AI Embeddings API turns text into vectors.
 
-**Related:** FLOW-UPLOAD, FLOW-RAG
+Turns document passages and user questions into vectors for retrieval.
 
-### COMP-SMTP · approved · source: architecture:components:email
+**Related:** REQ-FEAT-INDEXING
 
-SMTP server sends account-invite and password-reset email messages to staff.
+### ARCH-CP-ASK · approved · source: architecture:critical_paths.ask
 
-Invoked from the password-reset request flow and account invitation (per summary); specific trigger endpoints: POST /auth/password-reset/request.
+Critical path: ask a grounded, cited question.
 
-### FLOW-AUTH · approved · source: architecture:critical_paths:Email/password sign-in with opaque session token
+A signed-in user submits a question; the API embeds it with Voyage, retrieves nearest passages from pgvector, and streams a Claude answer with citations into the same conversation. If no passage is relevant, it answers that the knowledge base has nothing on the topic; if Claude errors, an informative message is returned and the question stays for retry.
 
-Staff sign in with email and password; the API verifies a bcrypt hash and issues an opaque, server-side session token.
+**Related:** REQ-FEAT-ASKING, REQ-FEAT-ANSWERS, NFR-006
 
-Step 1: Staff submit email and password. Step 2: API verifies the bcrypt password hash without revealing which field was wrong on failure. Step 3: API creates a server-side session row with an opaque token and an inactivity expiry, returned in the response body. Step 4: SPA stores the token and sends it as an Authorization: Bearer header on every call. Step 5: Sign-out, expiry, or account deactivation revoke or invalidate the session server-side.
+### ARCH-CP-UPLOAD · approved · source: architecture:critical_paths.upload
 
-**Related:** COMP-API, COMP-WEB, COMP-DB
+Critical path: upload and index a document.
 
-### FLOW-UPLOAD · approved · source: architecture:critical_paths:Document upload, chunk and embed
+An admin uploads a supported file; the API validates format, stores the original in S3, records metadata as processing, and enqueues an indexing job. The worker extracts text, chunks it, embeds via Voyage, stores vectors, and marks the document ready; a missing key or provider error marks it failed with no partial document treated as ready.
 
-Admin uploads a supported document; it is stored in S3 and asynchronously chunked, embedded and indexed by the worker.
+**Related:** REQ-FEAT-DOCMGMT, REQ-FEAT-INDEXING, NFR-006
 
-Step 1: Admin uploads a PDF, .docx, .txt or .md file. Step 2: API validates the format and stores the original in S3. Step 3: API creates a document row with status processing and enqueues an indexing job. Step 4: Worker extracts text, splits it into passages, and embeds each passage with Voyage AI. Step 5: Worker stores chunks and vectors in PostgreSQL and marks the document ready. Step 6: If the Voyage key is missing or the provider errors, the worker marks the document failed with an informative status detail -- a partial document is never left marked ready.
+### ARCH-CP-SIGNIN · approved · source: architecture:critical_paths.signin
 
-**Related:** COMP-API, COMP-WORKER, COMP-S3, COMP-QUEUE, COMP-VOYAGE, COMP-DB
+Critical path: sign in and protect requests.
 
-### FLOW-RAG · approved · source: architecture:critical_paths:RAG question to grounded cited answer
+Staff sign in with email and password; the API verifies the bcrypt hash, creates a server-side session, and returns an opaque token in the body. Every protected request carries Authorization: Bearer; the API validates the token, checks it is not expired/revoked and the account is active, and enforces the admin role on document management. Sign-out, inactivity expiry and admin deactivation all revoke the session.
 
-A signed-in user asks a question; the API retrieves relevant passages by vector similarity and returns a grounded, cited, streamed Claude answer saved to the user's private history.
+**Related:** REQ-FEAT-SIGNIN, NFR-001, NFR-002, NFR-003
 
-Step 1: Signed-in user asks a question in chat. Step 2: API embeds the query with Voyage AI. Step 3: API runs a pgvector similarity search over the shared knowledge base. Step 4: If sufficiently relevant passages exist, API sends them with the question to Claude and streams the answer back to the user. Step 5: API saves the message and its citations to the user's private conversation. Step 6: If nothing relevant is found, the API answers that the knowledge base has no information on the topic. Step 7: If Claude errors, the API returns an informative error message and keeps the question in the thread.
+### ARCH-ENTITIES · approved · source: architecture:entities
 
-**Related:** COMP-API, COMP-VOYAGE, COMP-DB, COMP-CLAUDE, COMP-WEB
+Data model: users, sessions, documents, document_chunks, conversations, messages, message_citations.
 
-### DATA-MODEL · approved · source: architecture:entities
+- users: id, email, password_hash, role, is_active, created_at.
+- sessions: id, user_id, token_hash, created_at, last_seen_at, expires_at, revoked_at.
+- documents: id, name, format, s3_key, status, status_detail, uploaded_by, created_at, updated_at.
+- document_chunks: id, document_id, chunk_index, content, embedding, created_at.
+- conversations: id, user_id, title, created_at, updated_at.
+- messages: id, conversation_id, role, content, created_at.
+- message_citations: id, message_id, document_id, chunk_id, snippet.
 
-Single PostgreSQL schema spans auth, document indexing and conversation history: users, sessions, documents, chunks, conversations, messages, citations.
+**Related:** REQ-FEAT-SIGNIN, REQ-FEAT-HISTORY, REQ-FEAT-DOCMGMT, REQ-FEAT-INDEXING
 
-users(id, email, password_hash, role, is_active, created_at). sessions(id, user_id, token_hash, expires_at, revoked, created_at). documents(id, name, format, s3_key, status, status_detail, uploaded_by, created_at, updated_at). chunks(id, document_id, passage_index, content, embedding, created_at). conversations(id, user_id, title, created_at, updated_at). messages(id, conversation_id, role, content, created_at). citations(id, message_id, chunk_id, document_id).
+### ARCH-EP-AUTH · approved · source: architecture:endpoints.auth
 
-**Related:** COMP-DB
+Authentication endpoints: sign-in, sign-out, current user, password-reset request.
 
-### API-ENDPOINTS · approved · source: architecture:endpoints
+- POST /auth/sign-in: authenticate by email and password; returns an opaque session token in the body; invalid credentials return 401 without revealing which field was wrong.
+- POST /auth/sign-out: revoke the current session.
+- GET /auth/me: return the signed-in user; SPA uses this to guard routes and redirect unauthenticated users.
+- POST /auth/password-reset/request: send a password-reset email via SMTP for the given address (always 202, no account enumeration).
 
-Ten REST endpoints cover authentication, document management, and conversation/chat.
+**Related:** REQ-FEAT-SIGNIN, NFR-001, NFR-002, NFR-003
 
-Auth: POST /auth/login (opaque token, generic invalid-credential message); POST /auth/logout (revoke current session); GET /auth/me (return signed-in user/role, validates and extends session); POST /auth/password-reset/request (sends SMTP email if address exists). Documents (admin): POST /documents (upload, store in S3, create processing doc, enqueue indexing, reject unsupported formats); GET /documents (list with name/format/status); PUT /documents/{id} (replace file, purge superseded chunks, re-index); DELETE /documents/{id} (delete document, chunks, embeddings, S3 object); GET /documents/{id}/source (short-lived S3 link to original behind a citation). Conversations: GET /conversations (list own conversations); POST /conversations (start new conversation); GET /conversations/{id} (reopen with messages/citations, denies access to other users'); POST /conversations/{id}/messages (ask question, retrieve passages, stream grounded Claude answer with citations, no-information or error fallback, question retained on failure).
+### ARCH-EP-CONV · approved · source: architecture:endpoints.conversations
 
-**Related:** COMP-API, FLOW-AUTH, FLOW-UPLOAD, FLOW-RAG, DATA-MODEL
+Conversation endpoints: list, start, read, and submit messages.
 
-### DEPLOY-TOPOLOGY · approved · source: architecture:deployment_nodes
+- GET /conversations: list the signed-in user's own saved conversations.
+- POST /conversations: start a new conversation for the signed-in user.
+- GET /conversations/{id}: return a conversation with its messages and citations; only the owner may read it.
+- POST /conversations/{id}/messages: submit a question; retrieves passages, calls Claude, and streams a grounded answer with citations into the thread; returns an informative error if Claude is unavailable, leaving the question in the conversation.
 
-All components run in a single AWS account: static SPA on S3+CloudFront, API and worker on ECS Fargate, managed Postgres and Redis, plus three SaaS dependencies.
+**Related:** REQ-FEAT-ASKING, REQ-FEAT-ANSWERS, REQ-FEAT-HISTORY
 
-Web SPA: React static site on S3 + CloudFront (static assets). API Service: FastAPI on ECS Fargate, Python 3.12 / Uvicorn. Indexing Worker: RQ worker on ECS Fargate, Python 3.12. Database: Amazon RDS for PostgreSQL 16 with pgvector. Redis: Amazon ElastiCache for Redis (or redis:7-alpine container). Document Store: Amazon S3 (object storage). Claude API: Anthropic (Claude), SaaS. Voyage AI: Voyage AI embeddings, SaaS. SMTP: SMTP server, SaaS.
+### ARCH-EP-DOCS · approved · source: architecture:endpoints.documents
 
-**Related:** COMP-WEB, COMP-API, COMP-WORKER, COMP-DB, COMP-QUEUE, COMP-S3, COMP-CLAUDE, COMP-VOYAGE, COMP-SMTP
+Document management endpoints, admin only.
 
-### TECH-FRONTEND · approved · source: architecture:technology_decisions:Frontend
+- GET /documents: list knowledge-base documents with name, format and status (processing, ready, failed). Admin only.
+- POST /documents: upload a PDF, .docx, .txt or .md file; validates format, stores the original in S3, records metadata and enqueues indexing. Admin only.
+- PUT /documents/{id}: replace a document with a new file; removes prior chunks/embeddings from retrieval and re-indexes the new content. Admin only.
+- DELETE /documents/{id}: delete a document and all its chunks and embeddings so it can no longer be retrieved or cited. Admin only.
 
-React 19 chosen as the approved frontend over Vue and Svelte.
+**Related:** REQ-FEAT-DOCMGMT, REQ-FEAT-INDEXING
 
-Delivered as a responsive Vite SPA rendering streaming chat, citations and the admin document screen; reads API base URL from VITE_API_BASE_URL and sends Authorization: Bearer on every call.
+### ARCH-NODE-SPA · approved · source: architecture:deployment_nodes.spa
 
-**Related:** COMP-WEB
+SPA Host: React 19 static build on S3 + CloudFront, its own origin.
 
-### TECH-BACKEND · approved · source: architecture:technology_decisions:Backend
+Static assets served from S3 behind CloudFront, hosted on its own origin from the API.
 
-FastAPI 0.115 chosen as the approved backend over Flask and Django REST Framework.
+**Related:** ARCH-COMP-WEB
 
-Its async streaming suits token-by-token Claude responses, and Python has the strongest Anthropic and Voyage client support for orchestrating RAG.
+### ARCH-NODE-API · approved · source: architecture:deployment_nodes.api
 
-**Related:** COMP-API
+API Service: FastAPI 0.115 under Uvicorn on ECS Fargate (single container), Python 3.12.
 
-### TECH-DATABASE · approved · source: architecture:technology_decisions:Database
+Runs the RAG API as a single container on ECS Fargate.
 
-PostgreSQL 16 chosen as the approved database over MySQL and a dedicated vector database.
+**Related:** ARCH-COMP-API
 
-A single store holds users, sessions, document metadata, conversation history and, via the pgvector extension, chunk embeddings -- so retrieval runs without a second service at this modest volume.
+### ARCH-NODE-WORKER · approved · source: architecture:deployment_nodes.worker
 
-**Related:** COMP-DB, DATA-MODEL
+Indexing Worker: RQ worker, same image as API, worker command, Python 3.12.
 
-### TECH-CLOUD · approved · source: architecture:technology_decisions:Cloud
+Runs the asynchronous indexing worker from the same container image as the API, invoked with a worker command.
 
-AWS chosen as the approved cloud over Azure and GCP.
+**Related:** ARCH-COMP-WORKER
 
-One account provides ECS/Fargate for the API and worker, RDS PostgreSQL, ElastiCache Redis, and S3 for original documents, in a region near staff since no data-residency rule is stated.
+### ARCH-NODE-PG · approved · source: architecture:deployment_nodes.postgresql
 
-**Related:** DEPLOY-TOPOLOGY
+PostgreSQL: Amazon RDS for PostgreSQL 16 with pgvector.
+
+Managed RDS instance running PostgreSQL 16 with the pgvector extension enabled.
+
+**Related:** ARCH-COMP-DB
+
+### ARCH-NODE-REDIS · approved · source: architecture:deployment_nodes.redis
+
+Redis 7 (redis:7-alpine) for the job queue.
+
+Runs Redis 7 for the background job queue used by API and worker.
+
+**Related:** ARCH-COMP-REDIS
+
+### ARCH-NODE-S3 · approved · source: architecture:deployment_nodes.s3
+
+S3 Bucket: Amazon S3 document store, managed.
+
+Managed S3 bucket storing original uploaded documents.
+
+**Related:** ARCH-COMP-S3
+
+### ARCH-NODE-CLAUDE · approved · source: architecture:deployment_nodes.claude
+
+Anthropic Claude API, external SaaS.
+
+External SaaS dependency for answer generation.
+
+**Related:** ARCH-COMP-CLAUDE
+
+### ARCH-NODE-VOYAGE · approved · source: architecture:deployment_nodes.voyage
+
+Voyage AI embeddings API, external SaaS.
+
+External SaaS dependency for passage/question embeddings.
+
+**Related:** ARCH-COMP-VOYAGE
+
+### ARCH-NODE-SMTP · approved · source: architecture:deployment_nodes.smtp
+
+SMTP Server: external SaaS relay for reset/invite email.
+
+External SMTP relay used for password-reset and account-invite email.
+
+**Related:** REQ-SERVICES
+
+### ARCH-TECH-FRONTEND · approved · source: architecture:technology_decisions.frontend
+
+Frontend: React 19 chosen over Vue and Svelte.
+
+Delivered as a responsive SPA on its own origin that stores the opaque session token and streams Claude answers with citations into the chat thread, plus the admin document screen.
+
+**Related:** REQ-TECH-STACK, ARCH-COMP-WEB
+
+### ARCH-TECH-BACKEND · approved · source: architecture:technology_decisions.backend
+
+Backend: FastAPI 0.115 chosen over Django and Flask.
+
+Python hosts the Anthropic and Voyage SDKs and FastAPI's streaming responses suit the chat experience; orchestrates retrieval, Claude calls, auth and enqueuing indexing jobs.
+
+**Related:** REQ-TECH-STACK, ARCH-COMP-API
+
+### ARCH-TECH-DB · approved · source: architecture:technology_decisions.database
+
+Database: PostgreSQL 16 chosen over MySQL and MongoDB.
+
+One database holds users, sessions, conversations, document metadata and, via the pgvector extension, the embeddings that power nearest-neighbour retrieval, avoiding a second vector service for this modest volume.
+
+**Related:** REQ-TECH-STACK, ARCH-COMP-DB
+
+### ARCH-TECH-CLOUD · approved · source: architecture:technology_decisions.cloud
+
+Cloud: AWS chosen over Azure and GCP.
+
+A single account hosts the SPA, API, worker, RDS PostgreSQL, Redis and S3 for the original uploaded files in one region near staff, with encryption at rest and in transit.
+
+**Related:** REQ-TECH-STACK
 <!-- sdlc:auto:end narrative -->
 
 <!-- sdlc:auto:start building-blocks -->
@@ -167,123 +258,130 @@ One account provides ECS/Fargate for the API and worker, RDS PostgreSQL, ElastiC
 
 | ID | Name | Technology | Responsibility | Depends on |
 |---|---|---|---|---|
-| web | React Web App | React 19 | Responsive SPA for sign-in, chat with streaming answers and citations, per-user conversation history, and the admin document-management screen. Redirects unauthenticated users to sign-in and sends Authorization: Bearer <token> on every call. | api |
-| api | FastAPI Backend | FastAPI 0.115 | Orchestrates auth, session validation, RAG retrieval and Claude answer generation with streaming, document CRUD, citation assembly, and enqueuing indexing jobs. Enforces role checks and per-user history isolation. | db, queue, filestore, ai, embed, email |
-| worker | Indexing Worker | Python (RQ worker) | Background consumer of the Redis queue: fetches the uploaded file from S3, extracts text, splits into passages, calls Voyage AI for embeddings, stores chunks and vectors in PostgreSQL, and updates document status (processing/ready/failed). Handles replace and delete by purging old chunks. | db, queue, filestore, embed |
-| db | PostgreSQL + pgvector | PostgreSQL 16 (pgvector) | Single store for users, roles, sessions, documents metadata, chunks with vector embeddings, conversations and messages with citations. Vector similarity search for retrieval. | — |
-| queue | Redis Queue | Redis 7 | Holds background jobs for chunking, embedding and deletion so admins are not blocked while a document is processed. | — |
-| filestore | Amazon S3 | Amazon S3 | Durable storage of the original uploaded PDF, Word, text and Markdown files for re-processing and for opening the source behind a citation. | — |
-| ai | Anthropic Claude API | Anthropic (Claude) SaaS | Generates grounded, cited answers from the question plus retrieved passages. | — |
-| embed | Voyage AI Embeddings API | Voyage AI SaaS | Converts document passages and queries into vectors for similarity retrieval. | — |
-| email | SMTP Email | SMTP server | Sends account-invite and password-reset messages to staff. | — |
+| web | Chat & Admin SPA | React 19 | Responsive chat interface, conversation history, admin document management, and sign-in. Stores the opaque session token and sends it as Authorization: Bearer on every API call; redirects unauthenticated users to sign-in. | api |
+| api | RAG API | FastAPI 0.115 | FastAPI app: authentication and session/token management, role checks, document upload to S3 and metadata, enqueue indexing jobs, retrieval orchestration (embed question, vector search, call Claude), streaming cited answers, per-user conversation history. | db, redis, s3, claude, voyage |
+| worker | Indexing Worker | Python RQ worker (FastAPI 0.115 codebase) | Consumes Redis jobs: extract text from PDF/DOCX/TXT/MD, split into passages, embed each via Voyage AI, store embeddings in pgvector, mark document ready or failed; on replace/delete remove old chunks and embeddings. | db, redis, s3, voyage |
+| db | PostgreSQL + pgvector | PostgreSQL 16 (pgvector extension) | Single store for users, roles, sessions, conversations, messages, citations, document metadata, chunks and their vector embeddings; nearest-neighbour retrieval via pgvector. | — |
+| redis | Job Queue | Redis 7 (redis:7-alpine) | Durable background queue carrying chunk/embed and delete-cleanup jobs between the API and the worker. | — |
+| s3 | Document Store | Amazon S3 | Durable storage of original uploaded PDF, Word, text and Markdown files for re-processing and opening the source behind a citation. | — |
+| claude | Anthropic Claude | Anthropic Claude API | Generates grounded, cited answers from the question and retrieved passages (streamed). | — |
+| voyage | Voyage AI Embeddings | Voyage AI API | Turns document passages and user questions into vectors for retrieval. | — |
 
 ```mermaid
 graph TD
-  c_web["React Web App"]
-  c_api["FastAPI Backend"]
+  c_web["Chat & Admin SPA"]
+  c_api["RAG API"]
   c_worker["Indexing Worker"]
   c_db["PostgreSQL + pgvector"]
-  c_queue["Redis Queue"]
-  c_filestore["Amazon S3"]
-  c_ai["Anthropic Claude API"]
-  c_embed["Voyage AI Embeddings API"]
-  c_email["SMTP Email"]
+  c_redis["Job Queue"]
+  c_s3["Document Store"]
+  c_claude["Anthropic Claude"]
+  c_voyage["Voyage AI Embeddings"]
   c_web --> c_api
   c_api --> c_db
-  c_api --> c_queue
-  c_api --> c_filestore
-  c_api --> c_ai
-  c_api --> c_embed
-  c_api --> c_email
+  c_api --> c_redis
+  c_api --> c_s3
+  c_api --> c_claude
+  c_api --> c_voyage
   c_worker --> c_db
-  c_worker --> c_queue
-  c_worker --> c_filestore
-  c_worker --> c_embed
+  c_worker --> c_redis
+  c_worker --> c_s3
+  c_worker --> c_voyage
 ```
 <!-- sdlc:auto:end building-blocks -->
 
 <!-- sdlc:auto:start runtime -->
 ## Runtime View
 
-### Email/password sign-in with opaque session token
+### Ask a grounded, cited question
 
-Staff submit email and password. The API verifies the bcrypt hash without revealing which field was wrong, creates a server-side session row with an opaque token and an inactivity expiry, and returns the token in the response body. The SPA stores it and sends it as a Bearer header; sign-out, expiry and account deactivation revoke or invalidate the session server-side.
+A signed-in user submits a question; the API embeds it with Voyage, retrieves nearest passages from pgvector, and streams a Claude answer with citations into the same conversation. If no passage is relevant, it answers that the knowledge base has nothing on the topic; if Claude errors, an informative message is returned and the question stays for retry.
 
-- **Components:** web, api, db
-- **Modules:** auth.router, auth.service, auth.security, auth.session_store
-- **Key functions:** login(email, password), verify_password(plain, hash), create_session(user_id), get_current_user(bearer_token), logout(token), revoke_user_sessions(user_id)
+- **Components:** web, api, db, voyage, claude
+- **Modules:** chat_router, retrieval_service, voyage_client, claude_client, conversation_repo
+- **Key functions:** post_message(conversation_id, question, token), embed_query(question), search_chunks(query_vector, top_k), stream_answer(question, passages), save_message_with_citations(conversation_id, role, content, citations)
 
 ```mermaid
 sequenceDiagram
-  participant U as Browser
-  participant A as FastAPI
-  participant D as PostgreSQL
-  U->>A: POST /auth/login email, password
-  A->>D: SELECT user by email
-  A->>A: verify bcrypt hash
-  A->>D: INSERT session opaque token, expiry
-  A-->>U: 200 token in body
-  U->>A: GET /conversations Bearer token
-  A->>D: SELECT session validate and extend
-  A-->>U: 200 data
+  participant U as SPA
+  participant A as API
+  participant V as Voyage
+  participant P as Postgres
+  participant C as Claude
+  U->>A: POST /conversations/{id}/messages Bearer token
+  A->>V: embed question
+  V-->>A: query vector
+  A->>P: nearest passages top_k
+  P-->>A: passages or none
+  alt no relevant passage
+    A-->>U: answer - not in knowledge base
+  else passages found
+    A->>C: question plus passages
+    C-->>A: streamed answer
+    A->>P: save answer and citations
+    A-->>U: stream answer with citations
+  end
 ```
 
-### Document upload, chunk and embed
+### Upload and index a document
 
-An admin uploads a supported file. The API validates the format, stores the original in S3, creates a document row as processing, and enqueues an indexing job. The worker extracts text, chunks it, embeds each passage with Voyage AI, stores chunks and vectors, and marks the document ready — or failed with an informative status if the Voyage key is missing or the provider errors, never leaving a partial document marked ready.
+An admin uploads a supported file; the API validates format, stores the original in S3, records metadata as processing, and enqueues an indexing job. The worker extracts text, chunks it, embeds via Voyage, stores vectors, and marks the document ready; a missing key or provider error marks it failed with no partial document treated as ready.
 
-- **Components:** web, api, filestore, queue, worker, embed, db
-- **Modules:** documents.router, documents.service, indexing.worker, indexing.extract, indexing.chunker, indexing.embeddings
-- **Key functions:** upload_document(file, admin), validate_format(filename), put_object(bucket, key, bytes), enqueue_index(document_id), extract_text(file), chunk(text), embed_passages(chunks), mark_status(document_id, status)
+- **Components:** web, api, s3, redis, worker, voyage, db
+- **Modules:** documents_router, s3_client, job_queue, extraction_service, chunker, voyage_client, document_repo
+- **Key functions:** upload_document(file, token), validate_format(filename, content_type), put_object(bucket, key, bytes), enqueue_index(document_id), extract_text(file_bytes, format), chunk_text(text), embed_passages(chunks), mark_ready_or_failed(document_id, status, detail)
 
 ```mermaid
 sequenceDiagram
-  participant Ad as Admin UI
-  participant A as FastAPI
+  participant U as SPA
+  participant A as API
   participant S as S3
   participant Q as Redis
   participant W as Worker
-  participant V as Voyage AI
-  participant D as PostgreSQL
-  Ad->>A: POST /documents file
+  participant V as Voyage
+  participant P as Postgres
+  U->>A: POST /documents multipart Bearer token
   A->>A: validate format
-  A->>S: put original object
-  A->>D: INSERT document status processing
+  A->>S: store original file
+  A->>P: insert document status processing
   A->>Q: enqueue index job
-  A-->>Ad: 202 accepted
+  A-->>U: 202 accepted document listed
   W->>Q: dequeue job
-  W->>S: get object
-  W->>W: extract and chunk text
+  W->>S: fetch original
+  W->>W: extract text and chunk
   W->>V: embed passages
-  W->>D: INSERT chunks and vectors
-  W->>D: UPDATE status ready or failed
+  V-->>W: vectors or error
+  alt key missing or error
+    W->>P: mark document failed
+  else success
+    W->>P: store chunks and embeddings mark ready
+  end
 ```
 
-### RAG question to grounded cited answer
+### Sign in and protect requests
 
-A signed-in user asks a question. The API embeds the query with Voyage AI, runs a pgvector similarity search over the shared knowledge base, and if sufficiently relevant passages exist, sends them with the question to Claude and streams the answer back, saving the message and citations to the user's private conversation. If nothing relevant is found it answers that the knowledge base has no information on the topic; if Claude errors it returns an informative message and keeps the question in the thread.
+Staff sign in with email and password; the API verifies the bcrypt hash, creates a server-side session, and returns an opaque token in the body. Every protected request carries Authorization: Bearer; the API validates the token, checks it is not expired/revoked and the account is active, and enforces the admin role on document management. Sign-out, inactivity expiry and admin deactivation all revoke the session.
 
-- **Components:** web, api, embed, db, ai
-- **Modules:** chat.router, chat.rag_service, chat.retrieval, chat.claude_client, chat.citations
-- **Key functions:** ask(conversation_id, question, user), embed_query(text), retrieve_passages(vector, top_k, min_score), build_prompt(question, passages), stream_answer(prompt), save_message_with_citations(message, chunk_ids)
+- **Components:** web, api, db
+- **Modules:** auth_router, session_service, password_hasher, auth_dependency, user_repo
+- **Key functions:** sign_in(email, password), verify_password(password, hash), create_session(user_id), require_user(token), require_admin(token), sign_out(token), revoke_user_sessions(user_id)
 
 ```mermaid
 sequenceDiagram
-  participant U as Chat UI
-  participant A as FastAPI
-  participant V as Voyage AI
-  participant D as PostgreSQL
-  participant C as Claude API
-  U->>A: POST /conversations/id/messages question Bearer token
-  A->>V: embed query
-  A->>D: vector similarity search chunks
-  alt no relevant passage
-    A-->>U: answer not in knowledge base
-  else passages found
-    A->>C: stream question plus passages
-    C-->>A: streamed answer
-    A->>D: save message and citations
-    A-->>U: streamed answer with citations
+  participant U as SPA
+  participant A as API
+  participant P as Postgres
+  U->>A: POST /auth/sign-in email password
+  A->>P: load user by email
+  P-->>A: user and password hash
+  alt invalid
+    A-->>U: 401 credentials invalid
+  else valid and active
+    A->>P: create session row
+    A-->>U: 200 opaque token in body
+    U->>A: GET /conversations Bearer token
+    A->>P: validate session active not expired
+    A-->>U: 200 data
   end
 ```
 <!-- sdlc:auto:end runtime -->
@@ -293,51 +391,51 @@ sequenceDiagram
 
 | Name | Service | Runtime | Scaling | Environment |
 |---|---|---|---|---|
-| Web SPA | React static site (S3 + CloudFront) | Static assets | CDN-served | dev |
-| API Service | FastAPI on ECS Fargate | Python 3.12 / Uvicorn | 1-2 tasks (sized for ~50 users) | dev |
-| Indexing Worker | RQ worker on ECS Fargate | Python 3.12 | 1 task | dev |
-| Database | Amazon RDS for PostgreSQL 16 with pgvector | PostgreSQL 16 | Single instance | dev |
-| Redis | Amazon ElastiCache for Redis (or redis:7-alpine container) | Redis 7 | Single node | dev |
-| Document Store | Amazon S3 | Object storage | Managed | dev |
-| Claude API | Anthropic (Claude) | SaaS | Managed | dev |
-| Voyage AI | Voyage AI embeddings | SaaS | Managed | dev |
-| SMTP | SMTP server | SaaS | Managed | dev |
+| SPA Host | React 19 static build (S3 + CloudFront, its own origin) | Static assets | CDN-cached | dev |
+| API Service | FastAPI 0.115 under Uvicorn (ECS Fargate / single container) | Python 3.12 | 1-2 small tasks for ~50 users | dev |
+| Indexing Worker | RQ worker (same image, worker command) | Python 3.12 | 1 task | dev |
+| PostgreSQL | Amazon RDS for PostgreSQL 16 with pgvector | PostgreSQL 16 | Single instance | dev |
+| Redis | Redis 7 (redis:7-alpine) for the job queue | Redis 7 | Single node | dev |
+| S3 Bucket | Amazon S3 document store | Managed | Managed | dev |
+| Anthropic Claude | Claude API | External SaaS | Managed | dev |
+| Voyage AI | Voyage embeddings API | External SaaS | Managed | dev |
+| SMTP Server | SMTP relay for reset/invite email | External SaaS | Managed | dev |
 
 | Source | Target | Protocol |
 |---|---|---|
-| Web SPA | API Service | HTTPS (Bearer token) |
-| API Service | Database | TLS (PostgreSQL) |
+| SPA Host | API Service | HTTPS (Authorization: Bearer) |
+| API Service | PostgreSQL | TCP/TLS |
 | API Service | Redis | TCP |
-| API Service | Document Store | HTTPS |
-| API Service | Claude API | HTTPS |
+| API Service | S3 Bucket | HTTPS |
+| API Service | Anthropic Claude | HTTPS |
 | API Service | Voyage AI | HTTPS |
-| API Service | SMTP | SMTP/TLS |
+| API Service | SMTP Server | SMTP/TLS |
 | Indexing Worker | Redis | TCP |
-| Indexing Worker | Database | TLS (PostgreSQL) |
-| Indexing Worker | Document Store | HTTPS |
+| Indexing Worker | PostgreSQL | TCP/TLS |
+| Indexing Worker | S3 Bucket | HTTPS |
 | Indexing Worker | Voyage AI | HTTPS |
 
 ```mermaid
 graph LR
-  n_Web_SPA["Web SPA<br/>React static site (S3 + CloudFront)"]
-  n_API_Service["API Service<br/>FastAPI on ECS Fargate"]
-  n_Indexing_Worker["Indexing Worker<br/>RQ worker on ECS Fargate"]
-  n_Database["Database<br/>Amazon RDS for PostgreSQL 16 with pgvector"]
-  n_Redis["Redis<br/>Amazon ElastiCache for Redis (or redis:7-alpine container)"]
-  n_Document_Store["Document Store<br/>Amazon S3"]
-  n_Claude_API["Claude API<br/>Anthropic (Claude)"]
-  n_Voyage_AI["Voyage AI<br/>Voyage AI embeddings"]
-  n_SMTP["SMTP<br/>SMTP server"]
-  n_Web_SPA -->|"HTTPS (Bearer token)"| n_API_Service
-  n_API_Service -->|"TLS (PostgreSQL)"| n_Database
+  n_SPA_Host["SPA Host<br/>React 19 static build (S3 + CloudFront, its own origin)"]
+  n_API_Service["API Service<br/>FastAPI 0.115 under Uvicorn (ECS Fargate / single container)"]
+  n_Indexing_Worker["Indexing Worker<br/>RQ worker (same image, worker command)"]
+  n_PostgreSQL["PostgreSQL<br/>Amazon RDS for PostgreSQL 16 with pgvector"]
+  n_Redis["Redis<br/>Redis 7 (redis:7-alpine) for the job queue"]
+  n_S3_Bucket["S3 Bucket<br/>Amazon S3 document store"]
+  n_Anthropic_Claude["Anthropic Claude<br/>Claude API"]
+  n_Voyage_AI["Voyage AI<br/>Voyage embeddings API"]
+  n_SMTP_Server["SMTP Server<br/>SMTP relay for reset/invite email"]
+  n_SPA_Host -->|"HTTPS (Authorization: Bearer)"| n_API_Service
+  n_API_Service -->|"TCP/TLS"| n_PostgreSQL
   n_API_Service -->|"TCP"| n_Redis
-  n_API_Service -->|"HTTPS"| n_Document_Store
-  n_API_Service -->|"HTTPS"| n_Claude_API
+  n_API_Service -->|"HTTPS"| n_S3_Bucket
+  n_API_Service -->|"HTTPS"| n_Anthropic_Claude
   n_API_Service -->|"HTTPS"| n_Voyage_AI
-  n_API_Service -->|"SMTP/TLS"| n_SMTP
+  n_API_Service -->|"SMTP/TLS"| n_SMTP_Server
   n_Indexing_Worker -->|"TCP"| n_Redis
-  n_Indexing_Worker -->|"TLS (PostgreSQL)"| n_Database
-  n_Indexing_Worker -->|"HTTPS"| n_Document_Store
+  n_Indexing_Worker -->|"TCP/TLS"| n_PostgreSQL
+  n_Indexing_Worker -->|"HTTPS"| n_S3_Bucket
   n_Indexing_Worker -->|"HTTPS"| n_Voyage_AI
 ```
 <!-- sdlc:auto:end deployment-view -->

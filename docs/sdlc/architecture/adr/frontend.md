@@ -16,9 +16,9 @@ Which Frontend technology does the project use? Decided in architecture v1.
 
 ## Decision Outcome
 
-Chosen option: React 19, because The approved frontend; delivered as a responsive Vite SPA that renders the streaming chat, citations and admin document screen, reading the API base URL from VITE_API_BASE_URL and sending Authorization: Bearer on every call.
+Chosen option: React 19, because Delivered as a responsive SPA on its own origin that stores the opaque session token and streams Claude answers with citations into the chat thread, plus the admin document screen.
 
 ## Consequences
 
-A SPA on its own origin cannot use cookies across to the API origin, so sessions use an opaque bearer token stored by the frontend rather than an HttpOnly cookie.
+A SPA needs its own build/host and cannot share cookies with the API, so sessions ride as Authorization: Bearer tokens rather than browser cookies.
 <!-- sdlc:auto:end adr -->

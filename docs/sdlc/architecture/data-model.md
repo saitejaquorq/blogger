@@ -6,7 +6,7 @@
 | Field | Type | PK | FK | Nullable |
 |---|---|---|---|---|
 | id | uuid | True | — | False |
-| email | text | False | — | False |
+| email | citext | False | — | False |
 | password_hash | text | False | — | False |
 | role | text | False | — | False |
 | is_active | boolean | False | — | False |
@@ -19,9 +19,10 @@
 | id | uuid | True | — | False |
 | user_id | uuid | False | users.id | False |
 | token_hash | text | False | — | False |
-| expires_at | timestamptz | False | — | False |
-| revoked | boolean | False | — | False |
 | created_at | timestamptz | False | — | False |
+| last_seen_at | timestamptz | False | — | False |
+| expires_at | timestamptz | False | — | False |
+| revoked_at | timestamptz | False | — | True |
 
 ### documents
 
@@ -37,13 +38,13 @@
 | created_at | timestamptz | False | — | False |
 | updated_at | timestamptz | False | — | False |
 
-### chunks
+### document_chunks
 
 | Field | Type | PK | FK | Nullable |
 |---|---|---|---|---|
 | id | uuid | True | — | False |
 | document_id | uuid | False | documents.id | False |
-| passage_index | integer | False | — | False |
+| chunk_index | integer | False | — | False |
 | content | text | False | — | False |
 | embedding | vector | False | — | False |
 | created_at | timestamptz | False | — | False |
@@ -68,27 +69,28 @@
 | content | text | False | — | False |
 | created_at | timestamptz | False | — | False |
 
-### citations
+### message_citations
 
 | Field | Type | PK | FK | Nullable |
 |---|---|---|---|---|
 | id | uuid | True | — | False |
 | message_id | uuid | False | messages.id | False |
-| chunk_id | uuid | False | chunks.id | False |
 | document_id | uuid | False | documents.id | False |
+| chunk_id | uuid | False | document_chunks.id | True |
+| snippet | text | False | — | True |
 <!-- sdlc:auto:end entities -->
 
 <!-- sdlc:auto:start relationships -->
 | Source | Target | Type |
 |---|---|---|
 | users | sessions | one-to-many |
-| users | documents | one-to-many |
 | users | conversations | one-to-many |
-| documents | chunks | one-to-many |
+| users | documents | one-to-many |
+| documents | document_chunks | one-to-many |
 | conversations | messages | one-to-many |
-| messages | citations | one-to-many |
-| chunks | citations | one-to-many |
-| documents | citations | one-to-many |
+| messages | message_citations | one-to-many |
+| documents | message_citations | one-to-many |
+| document_chunks | message_citations | one-to-many |
 <!-- sdlc:auto:end relationships -->
 
 <!-- sdlc:auto:start er-diagram -->
@@ -96,7 +98,7 @@
 erDiagram
   users {
     uuid id PK
-    text email
+    citext email
     text password_hash
     text role
     boolean is_active
@@ -106,9 +108,10 @@ erDiagram
     uuid id PK
     uuid user_id FK
     text token_hash
-    timestamptz expires_at
-    boolean revoked
     timestamptz created_at
+    timestamptz last_seen_at
+    timestamptz expires_at
+    timestamptz revoked_at
   }
   documents {
     uuid id PK
@@ -121,10 +124,10 @@ erDiagram
     timestamptz created_at
     timestamptz updated_at
   }
-  chunks {
+  document_chunks {
     uuid id PK
     uuid document_id FK
-    integer passage_index
+    integer chunk_index
     text content
     vector embedding
     timestamptz created_at
@@ -143,19 +146,20 @@ erDiagram
     text content
     timestamptz created_at
   }
-  citations {
+  message_citations {
     uuid id PK
     uuid message_id FK
-    uuid chunk_id FK
     uuid document_id FK
+    uuid chunk_id FK
+    text snippet
   }
   users ||--o{ sessions : "one-to-many"
-  users ||--o{ documents : "one-to-many"
   users ||--o{ conversations : "one-to-many"
-  documents ||--o{ chunks : "one-to-many"
+  users ||--o{ documents : "one-to-many"
+  documents ||--o{ document_chunks : "one-to-many"
   conversations ||--o{ messages : "one-to-many"
-  messages ||--o{ citations : "one-to-many"
-  chunks ||--o{ citations : "one-to-many"
-  documents ||--o{ citations : "one-to-many"
+  messages ||--o{ message_citations : "one-to-many"
+  documents ||--o{ message_citations : "one-to-many"
+  document_chunks ||--o{ message_citations : "one-to-many"
 ```
 <!-- sdlc:auto:end er-diagram -->

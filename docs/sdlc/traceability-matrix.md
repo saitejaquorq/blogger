@@ -9,20 +9,20 @@ Built from recorded links, not written by a model: requirement key → plan item
 <!-- sdlc:auto:start matrix -->
 | Requirement | Epic | Title | Plan items | Sprint | Design | Code | Commits | Ticket | Test step | Tests | Result | AC tests | Deployed |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| US-001 | EPIC-001 | Sign in with email and password | — | — | — | — | — | not started | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
-| US-002 | EPIC-001 | Restrict access to authenticated users | — | — | — | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
-| US-003 | EPIC-001 | Admin role governs document management | — | — | — | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
-| US-004 | EPIC-001 | End sessions on sign-out and expiry | — | — | — | — | — | not started | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
-| US-005 | EPIC-002 | Upload documents in supported formats | — | — | — | — | — | not started | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
-| US-006 | EPIC-002 | Replace an existing document | — | — | — | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
-| US-007 | EPIC-002 | Delete a document and remove it from retrieval | — | — | — | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
-| US-008 | EPIC-002 | View the shared knowledge base contents | — | — | — | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
-| US-009 | EPIC-003 | Automatically chunk and embed uploaded content | — | — | — | — | — | not started | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
-| US-010 | EPIC-003 | Configure the embedding provider credential | — | — | — | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
-| US-011 | EPIC-004 | Ask a question through the chat interface | — | — | — | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
-| US-012 | EPIC-004 | Retrieve relevant passages for a question | — | — | — | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
-| US-013 | EPIC-004 | Generate grounded answers with Claude | — | — | — | — | — | not started | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
-| US-014 | EPIC-004 | Cite source documents and passages | — | — | — | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
-| US-015 | EPIC-005 | Save conversations per user | — | — | — | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
-| US-016 | EPIC-005 | Keep conversation history private to the user | — | — | — | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
+| US-001 | EPIC-001 | Sign in with email and password | US-001, US-001-T1, US-001-T2, US-001-T3 | 1 | GET /auth/me, POST /auth/sign-in, api, db, sessions, users, web | — | — | not started | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
+| US-002 | EPIC-001 | Restrict access to authenticated users | US-002 | 1 | GET /auth/me, api, sessions, web | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
+| US-003 | EPIC-001 | Admin role governs document management | US-003 | 2 | api, users, web | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
+| US-004 | EPIC-001 | End sessions on sign-out and expiry | US-004 | 1 | POST /auth/sign-out, api, db, sessions, users | — | — | not started | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
+| US-005 | EPIC-002 | Upload documents in supported formats | US-005, US-005-T1, US-005-T2, US-005-T3, US-005-T4 | 2 | GET /documents, POST /documents, api, db, documents, redis, s3, web | — | — | not started | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
+| US-006 | EPIC-002 | Replace an existing document | US-006 | 3 | PUT /documents/{id}, api, db, document_chunks, documents, worker | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
+| US-007 | EPIC-002 | Delete a document and remove it from retrieval | US-007 | 3 | DELETE /documents/{id}, api, db, document_chunks, documents, worker | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
+| US-008 | EPIC-002 | View the shared knowledge base contents | US-008 | 2 | GET /documents, api, documents, web | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
+| US-009 | EPIC-003 | Automatically chunk and embed uploaded content | US-009, US-009-T1, US-009-T2, US-009-T3, US-009-T4 | 3 | db, document_chunks, documents, voyage, worker | — | — | not started | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
+| US-010 | EPIC-003 | Configure the embedding provider credential | US-010 | 2 | api, documents, worker | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
+| US-011 | EPIC-004 | Ask a question through the chat interface | US-011, US-011-T1, US-011-T2, US-011-T3, US-011-T4 | 5 | GET /conversations/{id}, POST /conversations, POST /conversations/{id}/messages, api, conversations, messages, web | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
+| US-012 | EPIC-004 | Retrieve relevant passages for a question | US-012 | 4 | POST /conversations/{id}/messages, api, db, document_chunks, voyage | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
+| US-013 | EPIC-004 | Generate grounded answers with Claude | US-013, US-013-T1, US-013-T2, US-013-T3, US-013-T4 | 4 | POST /conversations/{id}/messages, api, claude, messages | — | — | not started | not run | 0 | No tests | 0/3 tested · 0/3 passing | — |
+| US-014 | EPIC-004 | Cite source documents and passages | US-014 | 4 | GET /conversations/{id}, POST /conversations/{id}/messages, api, db, message_citations, messages, web | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
+| US-015 | EPIC-005 | Save conversations per user | US-015 | 5 | GET /conversations, GET /conversations/{id}, POST /conversations, api, conversations, db, messages, web | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
+| US-016 | EPIC-005 | Keep conversation history private to the user | US-016 | 5 | GET /conversations, GET /conversations/{id}, api, conversations, db, messages | — | — | not started | not run | 0 | No tests | 0/2 tested · 0/2 passing | — |
 <!-- sdlc:auto:end matrix -->

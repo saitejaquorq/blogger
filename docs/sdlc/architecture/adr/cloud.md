@@ -16,9 +16,9 @@ Which Cloud technology does the project use? Decided in architecture v1.
 
 ## Decision Outcome
 
-Chosen option: AWS, because The approved cloud; one account provides ECS/Fargate for the API and worker, RDS PostgreSQL, ElastiCache Redis, and S3 for original documents, in a region near staff since no data-residency rule is stated.
+Chosen option: AWS, because A single account hosts the SPA, API, worker, RDS PostgreSQL, Redis and S3 for the original uploaded files in one region near staff, with encryption at rest and in transit.
 
 ## Consequences
 
-All-in on AWS; no multi-cloud portability, which is acceptable for an internal tool.
+Ties the deployment to AWS-managed services; acceptable for an internal tool with no stated multi-cloud or residency requirement.
 <!-- sdlc:auto:end adr -->

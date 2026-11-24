@@ -5,7 +5,7 @@
 <!-- sdlc:auto:start history -->
 ## v2 — 2026-11-24
 
-- generated: Regenerated the architecture phase(s) (model `claude-sonnet-5`, prompt `v11`)
+- generated: Regenerated the planning phase(s) (model `claude-sonnet-5`, prompt `v11`)
 
 ## v1 — 2026-11-24
 

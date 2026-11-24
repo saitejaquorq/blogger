@@ -5,57 +5,25 @@ info:
   version: architecture-v1
   description: Designed API from the approved architecture (not extracted from code).
 paths:
-  /auth/login:
-    post:
-      summary: Sign in with email and password; returns an opaque session token in
-        the body. Invalid credentials return a generic messa
-      description: Sign in with email and password; returns an opaque session token
-        in the body. Invalid credentials return a generic message that does not reveal
-        which field was wrong.
-      operationId: post_auth_login
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              description: '{ email, password }'
-      responses:
-        '200':
-          description: '{ token, user: { id, email, role } }'
-  /auth/logout:
-    post:
-      summary: Revoke the current session server-side.
-      description: Revoke the current session server-side.
-      operationId: post_auth_logout
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              description: empty
-      responses:
-        '200':
-          description: '{ ok: true }'
-      security:
-      - bearerAuth: []
   /auth/me:
     get:
-      summary: Return the signed-in user and role; validates and extends the session.
-      description: Return the signed-in user and role; validates and extends the session.
+      summary: Return the signed-in user; used by the SPA to guard routes and redirect
+        unauthenticated users to sign-in.
+      description: Return the signed-in user; used by the SPA to guard routes and
+        redirect unauthenticated users to sign-in.
       operationId: get_auth_me
       parameters: []
       responses:
         '200':
-          description: '{ id, email, role, is_active }'
+          description: '{ id, email, role }'
       security:
       - bearerAuth: []
   /auth/password-reset/request:
     post:
-      summary: Send a password-reset email via SMTP for the given address if it exists.
-      description: Send a password-reset email via SMTP for the given address if it
-        exists.
+      summary: Send a password-reset email via SMTP for the given address (always
+        202, no account enumeration).
+      description: Send a password-reset email via SMTP for the given address (always
+        202, no account enumeration).
       operationId: post_auth_password_reset_request
       parameters: []
       requestBody:
@@ -66,7 +34,44 @@ paths:
               description: '{ email }'
       responses:
         '200':
-          description: '{ ok: true }'
+          description: '{ accepted: true }'
+  /auth/sign-in:
+    post:
+      summary: 'Authenticate by email and password; returns an opaque session token
+        in the body. Invalid credentials return 401 without '
+      description: Authenticate by email and password; returns an opaque session token
+        in the body. Invalid credentials return 401 without revealing which field
+        was wrong.
+      operationId: post_auth_sign_in
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{ email, password }'
+      responses:
+        '200':
+          description: '{ token, user: { id, email, role } }'
+  /auth/sign-out:
+    post:
+      summary: Revoke the current session so the token can no longer reach protected
+        pages.
+      description: Revoke the current session so the token can no longer reach protected
+        pages.
+      operationId: post_auth_sign_out
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: empty
+      responses:
+        '200':
+          description: '{ success: true }'
+      security:
+      - bearerAuth: []
   /conversations:
     get:
       summary: List the signed-in user's own saved conversations.
@@ -91,15 +96,15 @@ paths:
               description: '{ title? }'
       responses:
         '200':
-          description: '{ id, title, created_at }'
+          description: '{ id, title }'
       security:
       - bearerAuth: []
   /conversations/{id}:
     get:
-      summary: Reopen one of the user's conversations with its messages and citations;
-        denies access to other users' conversations.
-      description: Reopen one of the user's conversations with its messages and citations;
-        denies access to other users' conversations.
+      summary: Return a conversation with its messages and citations; only the owner
+        may read it.
+      description: Return a conversation with its messages and citations; only the
+        owner may read it.
       operationId: get_conversations_id
       parameters:
       - name: id
@@ -114,12 +119,11 @@ paths:
       - bearerAuth: []
   /conversations/{id}/messages:
     post:
-      summary: 'Ask a question: retrieve relevant passages, generate a grounded answer
-        with Claude (streamed), and save the answer with '
-      description: 'Ask a question: retrieve relevant passages, generate a grounded
-        answer with Claude (streamed), and save the answer with citations. Returns
-        a knowledge-base-has-no-information answer when nothing relevant is found,
-        and an informative error (question retained) when Claude fails.'
+      summary: Submit a question; retrieves passages, calls Claude, and streams a
+        grounded answer with citations into the thread. Retur
+      description: Submit a question; retrieves passages, calls Claude, and streams
+        a grounded answer with citations into the thread. Returns an informative error
+        if Claude is unavailable, leaving the question in the conversation.
       operationId: post_conversations_id_messages
       parameters:
       - name: id
@@ -135,29 +139,28 @@ paths:
               description: '{ question }'
       responses:
         '200':
-          description: 'text/event-stream of answer tokens then { message_id, citations:
-            [ { document_id, document_name, passage_index } ] }'
+          description: text/event-stream of answer tokens then { answer, citations
+            }
       security:
       - bearerAuth: []
   /documents:
     get:
-      summary: Admin lists knowledge-base documents with name, format and status (processing/ready/failed).
-      description: Admin lists knowledge-base documents with name, format and status
-        (processing/ready/failed).
+      summary: List knowledge-base documents with name, format and status (processing,
+        ready, failed). Admin only.
+      description: List knowledge-base documents with name, format and status (processing,
+        ready, failed). Admin only.
       operationId: get_documents
       parameters: []
       responses:
         '200':
-          description: '[ { id, name, format, status, status_detail, updated_at }
-            ]'
+          description: '[ { id, name, format, status, status_detail } ]'
       security:
       - bearerAuth: []
     post:
-      summary: Admin uploads a PDF, .docx, .txt or .md file; stores original in S3,
-        creates a processing document and enqueues indexing
-      description: Admin uploads a PDF, .docx, .txt or .md file; stores original in
-        S3, creates a processing document and enqueues indexing. Unsupported formats
-        are rejected.
+      summary: Upload a PDF, .docx, .txt or .md file; validates format, stores the
+        original in S3, records metadata and enqueues indexi
+      description: Upload a PDF, .docx, .txt or .md file; validates format, stores
+        the original in S3, records metadata and enqueues indexing. Admin only.
       operationId: post_documents
       parameters: []
       requestBody:
@@ -173,10 +176,10 @@ paths:
       - bearerAuth: []
   /documents/{id}:
     put:
-      summary: Admin replaces a document with a new file; purges superseded chunks
-        and re-indexes the new content.
-      description: Admin replaces a document with a new file; purges superseded chunks
-        and re-indexes the new content.
+      summary: Replace a document with a new file; removes prior chunks/embeddings
+        from retrieval and re-indexes the new content. Admin
+      description: Replace a document with a new file; removes prior chunks/embeddings
+        from retrieval and re-indexes the new content. Admin only.
       operationId: put_documents_id
       parameters:
       - name: id
@@ -192,14 +195,14 @@ paths:
               description: multipart/form-data file
       responses:
         '200':
-          description: '{ id, name, format, status }'
+          description: '{ id, status }'
       security:
       - bearerAuth: []
     delete:
-      summary: Admin deletes a document and all its chunks, embeddings and S3 object
-        so it can no longer be retrieved or cited.
-      description: Admin deletes a document and all its chunks, embeddings and S3
-        object so it can no longer be retrieved or cited.
+      summary: Delete a document and all its chunks and embeddings so it can no longer
+        be retrieved or cited. Admin only.
+      description: Delete a document and all its chunks and embeddings so it can no
+        longer be retrieved or cited. Admin only.
       operationId: delete_documents_id
       parameters:
       - name: id
@@ -209,24 +212,7 @@ paths:
           type: string
       responses:
         '200':
-          description: '{ ok: true }'
-      security:
-      - bearerAuth: []
-  /documents/{id}/source:
-    get:
-      summary: Return a short-lived S3 link to the original document behind a citation.
-      description: Return a short-lived S3 link to the original document behind a
-        citation.
-      operationId: get_documents_id_source
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-      responses:
-        '200':
-          description: '{ url }'
+          description: '{ success: true }'
       security:
       - bearerAuth: []
 components:
@@ -270,21 +256,25 @@ components:
           format: uuid
         token_hash:
           type: string
+        created_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
         expires_at:
           type: string
           format: date-time
-        revoked:
-          type: boolean
-        created_at:
+        revoked_at:
           type: string
           format: date-time
       required:
       - id
       - user_id
       - token_hash
-      - expires_at
-      - revoked
       - created_at
+      - last_seen_at
+      - expires_at
     documents:
       type: object
       properties:
@@ -319,7 +309,7 @@ components:
       - uploaded_by
       - created_at
       - updated_at
-    chunks:
+    document_chunks:
       type: object
       properties:
         id:
@@ -328,7 +318,7 @@ components:
         document_id:
           type: string
           format: uuid
-        passage_index:
+        chunk_index:
           type: integer
         content:
           type: string
@@ -340,7 +330,7 @@ components:
       required:
       - id
       - document_id
-      - passage_index
+      - chunk_index
       - content
       - embedding
       - created_at
@@ -389,7 +379,7 @@ components:
       - role
       - content
       - created_at
-    citations:
+    message_citations:
       type: object
       properties:
         id:
@@ -398,14 +388,15 @@ components:
         message_id:
           type: string
           format: uuid
-        chunk_id:
-          type: string
-          format: uuid
         document_id:
           type: string
           format: uuid
+        chunk_id:
+          type: string
+          format: uuid
+        snippet:
+          type: string
       required:
       - id
       - message_id
-      - chunk_id
       - document_id
