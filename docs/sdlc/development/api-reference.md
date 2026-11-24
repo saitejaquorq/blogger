@@ -7,7 +7,21 @@ _No routes found._
 <!-- sdlc:auto:end endpoints -->
 
 <!-- sdlc:auto:start drift -->
-_Code matches the designed API._
+**Designed but missing:**
+
+- DELETE /documents/{id}
+- GET /auth/me
+- GET /conversations
+- GET /conversations/{id}
+- GET /documents
+- GET /documents/{id}/source
+- POST /auth/login
+- POST /auth/logout
+- POST /auth/password-reset/request
+- POST /conversations
+- POST /conversations/{id}/messages
+- POST /documents
+- PUT /documents/{id}
 <!-- sdlc:auto:end drift -->
 
 <!-- sdlc:auto:start source -->
