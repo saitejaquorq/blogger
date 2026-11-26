@@ -5,211 +5,139 @@
 <!-- sdlc:auto:start narrative -->
 ## Overview
 
-### ARCH-SUMMARY · approved · source: architecture:summary
+### ARCH-001 · approved · source: architecture:summary
 
-Overall shape of the lightweight RAG chatbot architecture for ~50 staff, version 2 approved.
+Overall system design: lightweight internal RAG chatbot for ~50 staff, approved v2.
 
-A React 19 responsive web app provides a streaming chat interface and an admin document-management screen; a FastAPI 0.115 backend handles server-side session authentication, orchestrates retrieval-augmented generation (retrieve passages from PostgreSQL 16 + pgvector, call the Anthropic Claude API, return a cited answer), and manages documents. Admin-uploaded PDF, Word, text and Markdown files are stored in Amazon S3, then chunked and embedded via Voyage AI by an async background worker driven by a Redis queue, with vectors stored in pgvector alongside users, roles, conversations and document metadata. SMTP sends password-reset and invite emails. Everything runs in one AWS account/region.
+React 19 responsive SPA provides streaming chat and admin document management; FastAPI 0.115 backend handles server-side session auth, orchestrates RAG (retrieve from PostgreSQL 16 + pgvector, call Anthropic Claude, return cited answer), and manages documents. Admin-uploaded PDF/Word/text/Markdown files are stored in S3, then chunked and embedded via Voyage AI by an async worker driven by a Redis queue; vectors stored in pgvector alongside users, roles, conversations and document metadata. SMTP sends password-reset/invite emails. Everything runs in one AWS account/region.
 
-**Related:** REQ-TECH-STACK, REQ-SERVICES
+**Related:** REQ-STACK, REQ-SERVICES
 
-### ARCH-COMP-web · approved · source: architecture:components:web
+### ARCH-002 · approved · source: architecture:component:web
 
-Chat & Admin Web App component (React 19).
+Chat & Admin Web App (React 19): the SPA covering sign-in, chat, history and admin document management.
 
 Responsive SPA: sign-in, streaming chat with citations, conversation history, and admin document upload/replace/delete/list. Stores the opaque session token and sends it as Authorization: Bearer on every call.
 
 **Related:** REQ-FEAT-SIGNIN, REQ-FEAT-ASKING, REQ-FEAT-DOCMGMT
 
-### ARCH-COMP-api · approved · source: architecture:components:api
+### ARCH-003 · approved · source: architecture:component:api
 
-RAG Backend API component (FastAPI 0.115).
+RAG Backend API (FastAPI 0.115): authentication, RAG orchestration, document ingestion entry point.
 
-Authenticates staff with server-side sessions, enforces the admin role, orchestrates RAG (retrieve, call Claude, stream cited answer), serves conversation history, accepts document uploads to S3, and enqueues indexing jobs.
+Authenticates staff with server-side sessions, enforces admin role, orchestrates RAG (retrieve, call Claude, stream cited answer), serves conversation history, accepts document uploads to S3, and enqueues indexing jobs.
 
-**Related:** REQ-FEAT-SIGNIN, REQ-FEAT-ASKING, REQ-FEAT-DOCMGMT
+**Related:** REQ-FEAT-SIGNIN, REQ-FEAT-ASKING, REQ-FEAT-ANSWERS, REQ-FEAT-HISTORY, REQ-FEAT-DOCMGMT
 
-### ARCH-COMP-worker · approved · source: architecture:components:worker
+### ARCH-004 · approved · source: architecture:component:worker
 
-Indexing Worker component (arq async worker on FastAPI/Python).
+Indexing Worker (FastAPI/arq async worker, Python): background document processing.
 
 Consumes queued jobs to extract text from uploaded files, chunk passages, embed each via Voyage AI, write vectors to pgvector, and mark documents ready or failed; removes chunks/embeddings on replace and delete.
 
 **Related:** REQ-FEAT-INDEXING
 
-### ARCH-COMP-db · approved · source: architecture:components:db
+### ARCH-005 · approved · source: architecture:component:db
 
-PostgreSQL + pgvector component, the single datastore.
+PostgreSQL 16 + pgvector: single datastore for the whole application.
 
-Single store for users, roles, sessions, conversations/messages, document metadata, chunks and their vector embeddings; provides vector similarity search for retrieval.
+Single store for users, roles, sessions, conversations/messages, document metadata, chunks and their vector embeddings; used for vector similarity search at retrieval time.
 
-**Related:** REQ-TECH-STACK
+**Related:** REQ-STACK
 
-### ARCH-COMP-queue · approved · source: architecture:components:queue
+### ARCH-006 · approved · source: architecture:component:queue
 
-Redis Queue component (Redis 7).
+Redis Queue: decouples slow indexing work from admin requests.
 
-Background job queue decoupling slow chunk/embed/delete work from admin requests.
+Background job queue (Redis 7, redis:7-alpine) decoupling slow chunk/embed/delete work from admin requests.
 
-**Related:** REQ-FEAT-INDEXING
+**Related:** REQ-SERVICES
 
-### ARCH-COMP-storage · approved · source: architecture:components:storage
+### ARCH-007 · approved · source: architecture:component:storage
 
-Document Object Store component (Amazon S3).
+Document Object Store (Amazon S3): durable storage of original uploaded files.
 
 Durably stores original uploaded PDF/Word/text/Markdown files for re-processing and for opening the source behind a citation.
 
-**Related:** REQ-FEAT-DOCMGMT
+**Related:** REQ-SERVICES, REQ-FEAT-DOCMGMT
 
-### ARCH-COMP-ai_provider · approved · source: architecture:components:ai_provider
+### ARCH-008 · approved · source: architecture:component:ai_provider
 
-Anthropic Claude API component.
+Anthropic Claude API: generates the grounded, cited answers.
 
 Generates grounded, cited answers from the question plus retrieved passages.
 
-**Related:** REQ-FEAT-ASKING, REQ-FEAT-ANSWERS
+**Related:** REQ-FEAT-ANSWERS, REQ-SERVICES
 
-### ARCH-COMP-embeddings · approved · source: architecture:components:embeddings
+### ARCH-009 · approved · source: architecture:component:embeddings
 
-Voyage AI Embeddings component.
+Voyage AI Embeddings: converts passages and queries into vectors.
 
 Converts document passages (and queries) into vectors for retrieval.
 
-**Related:** REQ-FEAT-INDEXING
+**Related:** REQ-FEAT-INDEXING, REQ-SERVICES
 
-### ARCH-PATH-auth · approved · source: architecture:critical-path:auth
+### ARCH-010 · approved · source: architecture:critical_path:auth
 
 Email/password sign-in and session enforcement critical path.
 
-Staff sign in with email and password; backend verifies the bcrypt hash, creates a server-side session row with an opaque token, and returns it in the response body. The SPA stores it and sends Authorization: Bearer on every request. Each protected request validates the token, checks expiry/inactivity and account-active status, and admin routes additionally require the admin role. Sign-out, expiry and account deactivation revoke the session server-side.
+Staff sign in with email and password; backend verifies the bcrypt hash, creates a server-side session row with an opaque token, returns it in the response body. The SPA stores it and sends Authorization: Bearer on every request. Each protected request validates the token, checks expiry/inactivity and account-active status; admin routes additionally require the admin role. Sign-out, expiry and account deactivation revoke the session server-side.
 
-**Related:** REQ-FEAT-SIGNIN, REQ-NFR-001, REQ-NFR-002, REQ-NFR-003
+**Related:** REQ-FEAT-SIGNIN, NFR-001, NFR-002, NFR-003
 
-### ARCH-PATH-rag · approved · source: architecture:critical-path:rag
+### ARCH-011 · approved · source: architecture:critical_path:rag
 
-RAG question-answering-with-citations critical path.
+RAG question-answering with citations critical path.
 
-A signed-in user submits a question in a conversation. The backend embeds the question via Voyage AI, runs a pgvector similarity search over chunks of the shared knowledge base, and if sufficiently relevant passages exist sends them plus the question to Claude, streaming the grounded answer back with citations to the source document and passage. If nothing relevant is found the answer states the knowledge base has no information; if Claude errors the user gets an informative message and the question stays in the thread for retry.
+A signed-in user submits a question; backend embeds the question via Voyage AI, runs a pgvector similarity search over the shared knowledge base's chunks, and if sufficiently relevant passages exist sends them plus the question to Claude, streaming the grounded answer back with citations to document and passage. If nothing relevant is found, the answer states the knowledge base has no information; if Claude errors, the user gets an informative message and the question stays in the thread for retry.
 
-**Related:** REQ-FEAT-ASKING, REQ-FEAT-ANSWERS, REQ-NFR-006
+**Related:** REQ-FEAT-ASKING, REQ-FEAT-ANSWERS, NFR-006
 
-### ARCH-PATH-upload · approved · source: architecture:critical-path:upload
+### ARCH-012 · approved · source: architecture:critical_path:upload
 
 Document upload, chunk and embed (async) critical path.
 
-An admin uploads a supported file. The API validates the format, stores the original in S3, creates a document row with status processing, and enqueues an indexing job on Redis. The worker downloads the file, extracts text (pypdf for PDF, python-docx for Word, plain read for txt/md), splits it into passages, embeds each via Voyage AI, writes chunks and vectors to pgvector, and marks the document ready. A missing Voyage key or provider errors mark the document failed with an informative status, leaving no partial document ready. Replace and delete enqueue jobs that remove the old chunks/embeddings from retrieval.
+An admin uploads a supported file. The API validates the format, stores the original in S3, creates a document row with status processing, and enqueues an indexing job on Redis. The worker downloads the file, extracts text (pypdf for PDF, python-docx for Word, plain read for txt/md), splits it into passages, embeds each via Voyage AI, writes chunks and vectors to pgvector, and marks the document ready. A missing Voyage key or provider errors mark the document failed with an informative status, leaving no partial document ready. Replace and delete enqueue jobs that remove old chunks/embeddings from retrieval.
 
-**Related:** REQ-FEAT-DOCMGMT, REQ-FEAT-INDEXING, REQ-NFR-006
+**Related:** REQ-FEAT-DOCMGMT, REQ-FEAT-INDEXING, NFR-006
 
-### ARCH-ENTITIES · approved · source: architecture:entities
+### ARCH-013 · approved · source: architecture:entities
 
-Data model: the core tables/entities backing the application.
+Data model: core entities held in PostgreSQL.
 
-users: id, email, password_hash, role, is_active, created_at. sessions: id, user_id, token_hash, created_at, last_seen_at, expires_at. documents: id, name, format, s3_key, status, status_detail, uploaded_by, created_at, updated_at. document_chunks: id, document_id, chunk_index, content, embedding, created_at. conversations: id, user_id, title, created_at, updated_at. messages: id, conversation_id, role, content, created_at. message_citations: id, message_id, document_id, chunk_id, snippet.
+users(id, email, password_hash, role, is_active, created_at); sessions(id, user_id, token_hash, created_at, last_seen_at, expires_at); documents(id, name, format, s3_key, status, status_detail, uploaded_by, created_at, updated_at); document_chunks(id, document_id, chunk_index, content, embedding, created_at); conversations(id, user_id, title, created_at, updated_at); messages(id, conversation_id, role, content, created_at); message_citations(id, message_id, document_id, chunk_id, snippet).
 
-### ARCH-EP-auth · approved · source: architecture:endpoints:auth
+### ARCH-014 · approved · source: architecture:endpoints:auth+conversations
 
-Authentication and password-reset endpoints.
+Auth and conversation endpoints.
 
-POST /auth/login - sign in with email and password; returns an opaque session token in the body; generic invalid-credentials message doesn't reveal which field was wrong. POST /auth/logout - revoke the current session server-side. GET /auth/me - return the signed-in user and role; validates session active, not expired, account active. POST /auth/password-reset/request - send a password-reset email via SMTP if the address matches an account. POST /auth/password-reset/confirm - set a new password from a reset token; stores only the bcrypt hash.
+POST /auth/login (sign in, generic invalid-credentials message); POST /auth/logout (revoke session); GET /auth/me (validate session active/not expired/account active); POST /auth/password-reset/request (SMTP email if address matches an account); POST /auth/password-reset/confirm (set new password from reset token, bcrypt hash only); GET /conversations (list own conversations); POST /conversations (create conversation); GET /conversations/{id}/messages (list messages+citations, 404/403 if not owner); POST /conversations/{id}/messages (ask a question: persist, retrieve, call Claude, stream grounded answer; informative error if Claude unavailable, question remains in thread).
 
-**Related:** REQ-FEAT-SIGNIN, REQ-NFR-003
+**Related:** REQ-FEAT-SIGNIN, REQ-FEAT-ASKING, REQ-FEAT-HISTORY
 
-### ARCH-EP-conversations · approved · source: architecture:endpoints:conversations
-
-Conversation and messaging endpoints.
-
-GET /conversations - list the signed-in user's own conversations (private to the user). POST /conversations - create a new conversation for the signed-in user. GET /conversations/{id}/messages - list messages and citations in the user's own conversation; 404/403 if not theirs. POST /conversations/{id}/messages - ask a question: persist it, retrieve passages, call Claude, stream the grounded cited answer; returns an informative error if Claude is unavailable, leaving the question in the thread.
-
-**Related:** REQ-FEAT-ASKING, REQ-FEAT-HISTORY, REQ-NFR-004
-
-### ARCH-EP-documents · approved · source: architecture:endpoints:documents
+### ARCH-015 · approved · source: architecture:endpoints:documents
 
 Document management endpoints (admin only).
 
-GET /documents - list knowledge-base documents with name, format and status (admin only). POST /documents - upload a PDF/Word/text/Markdown file (admin only); validates format, stores original in S3, enqueues indexing, returns processing status; rejects unsupported formats with the supported list. PUT /documents/{id} - replace an existing document with a new file (admin only); removes old chunks/embeddings and indexes the new version under the same record. DELETE /documents/{id} - delete a document and enqueue removal of all its chunks and embeddings from retrieval (admin only).
+GET /documents (list name/format/status, admin only); POST /documents (upload PDF/Word/text/Markdown, admin only; validates format, stores in S3, enqueues indexing, returns processing status; rejects unsupported formats with supported list); PUT /documents/{id} (replace, admin only; removes old chunks/embeddings, indexes new version under same record); DELETE /documents/{id} (delete, admin only; enqueues removal of all chunks/embeddings).
 
-**Related:** REQ-FEAT-DOCMGMT, REQ-FEAT-INDEXING
+**Related:** REQ-FEAT-DOCMGMT
 
-### ARCH-NODE-web · approved · source: architecture:deployment-nodes:web-spa
+### ARCH-016 · approved · source: architecture:deployment_nodes
 
-Web SPA deployment node.
+Deployment topology: all components hosted on AWS.
 
-React 19 static build served from S3 + CloudFront (SPA origin); static assets.
+Web SPA: React 19 static build on S3 + CloudFront (SPA origin, static assets). API Service: FastAPI 0.115 on ECS Fargate (API origin, separate host, Python 3.12/uvicorn). Indexing Worker: FastAPI 0.115 arq worker on ECS Fargate (Python 3.12). PostgreSQL: Amazon RDS for PostgreSQL 16 with pgvector. Redis: Redis 7 (redis:7-alpine) on ECS / ElastiCache. Document Store: Amazon S3 bucket (object storage).
 
-**Related:** ARCH-COMP-web
+**Related:** REQ-STACK
 
-### ARCH-NODE-api · approved · source: architecture:deployment-nodes:api-service
+### ARCH-017 · approved · source: architecture:technology_decisions
 
-API Service deployment node.
+Rationale and alternatives considered for each core technology choice.
 
-FastAPI 0.115 on ECS Fargate (API origin, separate host from the SPA); Python 3.12 / uvicorn.
+Frontend: React 19 (alternatives: Vue, Svelte) -- single responsive SPA for streaming chat + admin screens, stores opaque session token as Authorization: Bearer, reads API base URL from VITE_API_BASE_URL (separate origins). Backend: FastAPI 0.115 (alternatives: Flask, Django REST Framework) -- orchestrates RAG, streams Claude responses via server-sent events, strongest ecosystem for Anthropic/Voyage SDKs; also runs the arq worker process. Database: PostgreSQL 16 (alternatives: MySQL, dedicated vector database) -- single store for users/roles/sessions/conversations/doc metadata and, via pgvector, embeddings/similarity search. Cloud: AWS (alternatives: Azure, GCP) -- hosts SPA, API, worker, RDS PostgreSQL, Redis and S3 in one account/region near staff.
 
-**Related:** ARCH-COMP-api
-
-### ARCH-NODE-worker · approved · source: architecture:deployment-nodes:indexing-worker
-
-Indexing Worker deployment node.
-
-FastAPI 0.115 arq worker on ECS Fargate; Python 3.12.
-
-**Related:** ARCH-COMP-worker
-
-### ARCH-NODE-db · approved · source: architecture:deployment-nodes:postgresql
-
-PostgreSQL deployment node.
-
-Amazon RDS for PostgreSQL 16 with the pgvector extension.
-
-**Related:** ARCH-COMP-db
-
-### ARCH-NODE-queue · approved · source: architecture:deployment-nodes:redis
-
-Redis deployment node.
-
-Redis 7 (redis:7-alpine) on ECS / ElastiCache.
-
-**Related:** ARCH-COMP-queue
-
-### ARCH-NODE-storage · approved · source: architecture:deployment-nodes:document-store
-
-Document Store deployment node.
-
-Amazon S3 bucket used as object storage for original uploaded files.
-
-**Related:** ARCH-COMP-storage
-
-### ARCH-TECH-frontend · approved · source: architecture:technology-decisions:frontend
-
-Frontend technology decision: React 19 (alternatives considered: Vue, Svelte).
-
-Delivered as a single responsive SPA for the streaming chat and admin document screens; stores the opaque session token and sends it as Authorization: Bearer, reading the API base URL from VITE_API_BASE_URL since the SPA and API are separate origins.
-
-**Related:** REQ-TECH-STACK
-
-### ARCH-TECH-backend · approved · source: architecture:technology-decisions:backend
-
-Backend technology decision: FastAPI 0.115 (alternatives considered: Flask, Django REST Framework).
-
-Python backend orchestrates RAG and streams Claude responses with server-sent events; strongest ecosystem for the Anthropic and Voyage SDKs. Also runs the arq worker process for async indexing.
-
-**Related:** REQ-TECH-STACK
-
-### ARCH-TECH-database · approved · source: architecture:technology-decisions:database
-
-Database technology decision: PostgreSQL 16 (alternatives considered: MySQL, a dedicated vector database).
-
-One store holds users, roles, sessions, conversations, document metadata and, via the pgvector extension, the embeddings and similarity search -- no second database needed for this modest document volume.
-
-**Related:** REQ-TECH-STACK
-
-### ARCH-TECH-cloud · approved · source: architecture:technology-decisions:cloud
-
-Cloud technology decision: AWS (alternatives considered: Azure, GCP).
-
-Hosts the SPA, API, worker, RDS PostgreSQL, Redis and S3 document storage in one account and region near staff; S3 durably holds the original uploads behind citations.
-
-**Related:** REQ-TECH-STACK
+**Related:** REQ-STACK
 <!-- sdlc:auto:end narrative -->
 
 <!-- sdlc:auto:start building-blocks -->
