@@ -7,163 +7,133 @@
 
 ### REQ-TECH-STACK · approved · source: requirements:technology-stack
 
-Product owner approved an exact technology stack: FastAPI backend, AWS hosting, PostgreSQL database, React frontend. No substitutions permitted.
+Product owner approved an exact technology stack for the RAG chatbot; design must use these, no substitutions.
 
-- Backend: FastAPI 0.115 -- orchestrates RAG (fetch passages, call Claude, stream cited answer); Python has the strongest Anthropic/embedding libraries; handles streaming; sized for ~50 users.
-- Cloud: AWS -- hosts web app, database and file storage (S3 for PDFs/Word) in one account; region chosen near staff since no data-residency rule was stated.
-- Database: PostgreSQL 16 (+ pgvector) -- single store for users, roles, conversation history, document metadata and embeddings, avoiding a separate vector service for a modest document volume.
-- Frontend: React 19 -- chat interface with streaming answers plus an admin upload/management screen; responsive single web app since mobile/voice are out of scope.
+Backend: FastAPI 0.115 - orchestrates RAG (fetch passages, call Claude, stream cited answer); Python has the strongest Anthropic/embedding library support and handles streaming; more than fast enough for ~50 users. Cloud: AWS - hosts web app, database and file storage (incl. S3 for PDFs/Word files) in one account; no data-residency rule stated so region chosen near staff. Database: PostgreSQL 16 with pgvector - single store for users, roles, conversation history, document metadata and embeddings, avoiding a separate vector service. Frontend: React 19 - chat interface with streaming answers plus an admin upload/management screen; standard responsive web choice since mobile and voice are out of scope.
 
-### REQ-SERVICES · approved · source: requirements:services
+### REQ-SERVICES · approved · source: requirements:runtime-services
 
-Six runtime services approved: Anthropic Claude, Voyage AI embeddings, pgvector, Amazon S3, Redis queue, and SMTP email, each with its required configuration.
+Approved external/runtime services the application integrates with, each with its required configuration.
 
-- Ai provider: Anthropic (Claude), SaaS, env ANTHROPIC_API_KEY -- generates the grounded, cited replies.
-- Embeddings: Voyage AI, SaaS, env VOYAGE_API_KEY -- turns chunks into vectors for retrieval; Anthropic-recommended pairing (OpenAI embeddings is a stated alternative).
-- Vector store: pgvector inside PostgreSQL (known) -- avoids a second database.
-- File storage: Amazon S3, SaaS, env AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_REGION/S3_BUCKET -- durable storage of original PDF/Word/text/Markdown files.
-- Queue: Redis (container redis:7-alpine) -- background chunk/embed and deletion jobs so admins don't wait.
-- Email: SMTP server, SaaS, env SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD -- password-reset and invite email.
-Required API keys/env vars overall: ANTHROPIC_API_KEY, AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY, REDIS_URL, S3_BUCKET, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USER, VOYAGE_API_KEY.
+- Ai provider: Anthropic (Claude), SaaS, env ANTHROPIC_API_KEY - generates the grounded, cited replies staff read.
+- Embeddings: Voyage AI, SaaS, env VOYAGE_API_KEY - converts document chunks to vectors for retrieval; Anthropic's recommended embedding partner (OpenAI embeddings noted as a swappable alternative for single-vendor billing).
+- Vector store: pgvector (in PostgreSQL), known - stores embeddings inside the existing Postgres instance, avoiding a second database.
+- File storage: Amazon S3, SaaS, env AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET - durably stores original uploaded PDF/Word/text/Markdown files for re-processing and source citation.
+- Queue: Redis (as a queue), container redis:7-alpine - background queue so chunking/embedding doesn't block the admin, and keeps deletions reliably removed from retrieval.
+- Email: SMTP server, SaaS, env SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD - sends password-reset and account-invite emails.
+Full required API key/config list: ANTHROPIC_API_KEY, AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY, REDIS_URL, S3_BUCKET, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USER, VOYAGE_API_KEY.
 
 ### REQ-SCOPE · approved · source: requirements:scope
 
-Delivery scope is lightweight, v1, approved. Defines what is and is not being built for this internal RAG chatbot.
+Defines the lightweight delivery scope: what capabilities are built and what is explicitly excluded.
 
-In scope: chat interface for questions; retrieval of relevant passages from uploaded documents; Claude-generated grounded answers; source citations to document and passage; document upload (PDF, Word, text, Markdown); automatic chunking and embedding; shared knowledge base; add/replace/delete documents; removal of deleted content from retrieval; per-user saved conversation history; signed-in access for staff; Anthropic Claude for generation; Voyage AI for embeddings.
-Out of scope: native mobile/desktop apps, voice input, and automated connectors to external systems (SharePoint, Confluence, Google Drive, website crawling).
+In scope: chat interface for asking questions; retrieval of relevant passages from uploaded documents; Claude-generated answers grounded in the knowledge base; source citations to originating document and passage; document upload in PDF, Word, text and Markdown; automatic chunking and embedding of uploaded documents; a shared knowledge base of indexed content; add/replace/delete documents; removal of deleted content from retrieval; per-user saved conversation history; signed-in access for staff; Anthropic Claude for answer generation; Voyage AI for document embeddings. Out of scope: native mobile/desktop apps, voice input, and automated connectors to external systems (SharePoint, Confluence, Google Drive, website crawling). Requirements version 1, delivery scope 'lightweight', status approved.
 
 ### REQ-FEAT-SIGNIN · approved · source: requirements:Sign-in & accounts
 
-Staff authenticate with email/password; sessions can be ended; document management is restricted to the admin role.
+Email/password sign-in, sign-out, and admin-only gating of document management.
 
-- Sign in with email and password: correct credentials open the chat interface; non-matching credentials show a generic invalid-credentials message without revealing which field was wrong.
+- Sign in with email and password: correct credentials open the chat interface; credentials that don't match an account show a message that the credentials are invalid without revealing which field was wrong.
 - Sign out: ends the session so the user must sign in again to reach any protected page.
-- Admin-only document management: non-admin staff are denied access to the document area but can still use chat; admins can add, replace and delete documents.
-
-**Related:** REQ-FEAT-DOCMGMT
+- Admin-only document management: staff without the admin role are denied access to the document area but can still use chat; admins can add, replace and delete documents.
 
 ### REQ-FEAT-ASKING · approved · source: requirements:Asking questions
 
-Signed-in staff type questions into a chat thread; the system retrieves relevant passages and generates an answer via Claude.
+Core question-asking flow: chat input, passage retrieval, and Claude-generated answers.
 
-- Ask a question in chat: message appears in thread, system produces an answer in same conversation.
-- Find relevant passages: uses document embeddings to retrieve the most relevant passages from the shared knowledge base.
-- Generate grounded answers: sends question + retrieved passages to the Anthropic Claude API and returns the answer grounded in knowledge-base content.
-
-**Related:** REQ-FEAT-ANSWERS
+- Ask a question in chat: a signed-in staff member types a question; their message appears in the thread and the system produces an answer in the same conversation.
+- Find relevant passages: on each question, document embeddings are used to retrieve the most relevant passages from the shared knowledge base.
+- Generate grounded answers: the question and retrieved passages are sent to the Anthropic Claude API, and the resulting answer is returned in chat, grounded in the knowledge base content.
 
 ### REQ-FEAT-ANSWERS · approved · source: requirements:Answers & citations
 
-Answers state when nothing relevant is found rather than inventing content, and show citations identifying source document and passage.
+Rules for handling no-match cases and for showing verifiable citations on answers.
 
-- Say when nothing relevant is found: answer states the knowledge base has no information on the topic rather than inventing content.
-- Show source citations: each generated answer shows citations identifying the originating document and passage(s), clear enough to locate and verify the content.
-
-**Related:** REQ-FEAT-ASKING
+- Say when nothing relevant is found: when no sufficiently relevant passage exists, the answer states the knowledge base does not contain information on the topic rather than inventing content.
+- Show source citations: each generated answer shows citations identifying the originating document and the passage(s) it drew on, clearly enough to locate and verify the referenced content.
 
 ### REQ-FEAT-HISTORY · approved · source: requirements:Conversation history
 
-Each staff member's conversations are saved and can be viewed and reopened after signing back in.
+Per-user persistence and retrieval of past conversations.
 
-- Save conversations per user: questions and answers persist so, after sign-out/sign-in, previous conversations and answers remain available.
+- Save conversations per user: each staff member's questions and answers are saved; after signing out and back in, previous conversations and answers are still available.
 - View and reopen past conversations: a staff member with more than one saved conversation can see their history and reopen each conversation.
 
 ### REQ-FEAT-DOCMGMT · approved · source: requirements:Document management
 
-Admins upload, replace, delete and view the status of knowledge-base documents in supported formats.
+Admin capabilities for uploading, replacing, deleting and viewing status of knowledge-base documents.
 
-- Upload documents in supported formats: PDF, Word (.docx), plain text or Markdown accepted, stored and listed with name and status; unsupported formats rejected with a message stating the supported formats.
-- Replace an existing document: previous content removed from retrieval, new content indexed; later answers use the new version and no longer cite the superseded content.
-- Delete a document: removes the document and all its chunks/embeddings so it cannot be retrieved or cited.
-- View knowledge base and status: admin sees each document's name, format and status (processing, ready, failed) so failed items can be retried or removed.
-
-**Related:** REQ-FEAT-SIGNIN, REQ-FEAT-INDEXING
+- Upload documents in supported formats: an admin uploads PDF, Word (.docx), plain text or Markdown files, which are accepted, stored and listed with name and status; unsupported formats are rejected with a message stating the supported formats.
+- Replace an existing document: the previous content is removed from retrieval and the new content is indexed, so later answers draw on the new version and no longer cite the superseded content.
+- Delete a document: removes the document and all of its chunks and embeddings so the content can no longer be retrieved or cited.
+- View knowledge base and status: an admin sees each document's name, format and current status (processing, ready or failed), so failed items can be retried or removed.
 
 ### REQ-FEAT-INDEXING · approved · source: requirements:Document indexing
 
-Uploaded documents are automatically chunked and embedded via Voyage AI; the embedding key must be configured or indexing reports unavailable.
+Automated chunking/embedding pipeline and secure configuration of the embedding provider key.
 
-- Automatic chunking and embedding: after text extraction, system splits into passages, converts each to an embedding via Voyage AI, stores embeddings in the vector datastore; document marked ready once all passages are stored.
-- Configure the embedding provider key: admin/operator configures the embedding API key securely; when not configured, indexing reports embedding is unavailable instead of marking the document ready.
+- Automatic chunking and embedding: after text extraction, the system splits the document into passages, converts each to an embedding via Voyage AI, and stores the embeddings in the vector datastore; when all passages are stored, the document is marked ready for retrieval.
+- Configure the embedding provider key: an admin or operator configures the embedding provider API key securely; when the key is not configured, indexing a document reports that embedding is unavailable instead of marking the document ready.
 
-**Related:** REQ-FEAT-DOCMGMT
+### REQ-NFR-001 · approved · source: requirements:NFR-001
 
-### NFR-001 · approved · source: requirements:NFR-001
-
-[security] Passwords stored only as secure hashes.
+[security] Passwords must be stored only as secure hashes.
 
 User account passwords are persisted only as a secure hash and are never stored in plain text or in any reversible form.
 
-**Related:** REQ-FEAT-SIGNIN
+### REQ-NFR-002 · approved · source: requirements:NFR-002
 
-### NFR-002 · approved · source: requirements:NFR-002
+[security] Only signed-in staff can reach chat or document content, including via API.
 
-[security] Only signed-in staff can reach content.
+Anyone who is not signed in is sent to the sign-in page and cannot see any chat or document pages; application interface requests for knowledge-base content or answers are rejected as unauthenticated.
 
-Anyone not signed in is sent to the sign-in page and cannot see any chat or document pages; application interface requests for knowledge-base content or answers are rejected as unauthenticated.
+### REQ-NFR-003 · approved · source: requirements:NFR-003
 
-**Related:** REQ-FEAT-SIGNIN
+[security] Sessions must end on sign-out, inactivity timeout, or admin deactivation.
 
-### NFR-003 · approved · source: requirements:NFR-003
+A session ends when the user signs out, when it has been inactive beyond the configured session lifetime, and when an admin deactivates the account; after any of these the person must sign in again to reach any protected page.
 
-[security] Sessions end when they should.
+### REQ-NFR-004 · approved · source: requirements:NFR-004
 
-A session ends when the user signs out, when inactive beyond the configured session lifetime, and when an admin deactivates the account; after any of these the person must sign in again to reach any protected page.
-
-**Related:** REQ-FEAT-SIGNIN
-
-### NFR-004 · approved · source: requirements:NFR-004
-
-[privacy] Conversation history is private to each user.
+[privacy] Conversation history is private per user.
 
 Saved conversation history is visible only to the staff member who created it; a user never sees another user's conversations, including after a different user signs in on the same browser.
 
-**Related:** REQ-FEAT-HISTORY
+### REQ-NFR-005 · approved · source: requirements:NFR-005
 
-### NFR-005 · approved · source: requirements:NFR-005
+[usability] Chat interface must remain usable on smaller screens.
 
-[usability] Chat works on smaller screens.
+The chat interface is delivered as a responsive web application that adapts to the screen size and stays usable on smaller screens.
 
-The chat interface is delivered as a responsive web application that adapts to screen size and stays usable on smaller screens.
+### REQ-NFR-006 · approved · source: requirements:NFR-006
 
-**Related:** REQ-FEAT-ASKING
+[availability] Graceful degradation when the Claude or embedding services fail.
 
-### NFR-006 · approved · source: requirements:NFR-006
+When the Claude answer service is unavailable or errors, the user sees an informative message and their question stays in the conversation to retry. When the embedding provider key is missing or the provider errors, the document is marked failed with an informative status and no partially processed document is treated as ready.
 
-[availability] Graceful handling of AI service failures.
+### REQ-NFR-007 · approved · source: requirements:NFR-007
 
-When the Claude answer service is unavailable or errors, the user sees an informative message and the question stays in the conversation to retry. When the embedding provider key is missing or the provider errors, the document is marked failed with an informative status and no partially processed document is treated as ready.
+[scalability] Sized for an internal tool, not enterprise scale.
 
-**Related:** REQ-FEAT-ANSWERS, REQ-FEAT-INDEXING
+The system is sized for an internal tool serving up to roughly 50 staff with a modest document volume, not for enterprise-scale load. Target: up to ~50 staff.
 
-### NFR-007 · approved · source: requirements:NFR-007
+### REQ-NFR-008 · approved · source: requirements:NFR-008
 
-[scalability] Sized for a small internal team.
-
-The system is sized for an internal tool serving up to roughly 50 staff with a modest document volume, not enterprise-scale load. Target: up to ~50 staff.
-
-### NFR-008 · approved · source: requirements:NFR-008
-
-[security] Service credentials held in configuration.
+[security] Service credentials must come from secure configuration, never hard-coded.
 
 The embedding provider, Claude and other service keys are supplied through secure configuration rather than hard-coded; when the embedding key is absent the system reports that indexing is unavailable instead of silently marking documents ready.
 
-**Related:** REQ-FEAT-INDEXING
+### REQ-NFR-009 · approved · source: requirements:NFR-009
 
-### NFR-009 · approved · source: requirements:NFR-009
-
-[privacy] (accepted risk) Single shared knowledge base, no per-document access.
+[privacy] Accepted risk: single shared knowledge base with no per-document access control.
 
 The knowledge base is a single shared collection that all staff can query; there is no per-document or per-user access restriction in this scope. Recorded as an accepted risk.
 
-**Related:** REQ-FEAT-DOCMGMT
+### REQ-NFR-010 · approved · source: requirements:NFR-010
 
-### NFR-010 · approved · source: requirements:NFR-010
+[compliance] Accepted risk: no data-residency or regulatory regime stated.
 
-[compliance] (accepted risk) No data-residency or regulatory regime stated.
-
-No data-residency requirement and no special regulatory or compliance regime were stated for this general-industry internal tool, so hosting region and compliance controls are left to engineering judgement. No named industry regulation to trace against.
+No data-residency requirement and no special regulatory or compliance regime were stated for this general-industry internal tool, so hosting region and compliance controls are left to engineering judgement. Recorded as an accepted risk.
 <!-- sdlc:auto:end narrative -->
 
 <!-- sdlc:auto:start summary -->

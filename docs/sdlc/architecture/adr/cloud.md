@@ -2,11 +2,11 @@
 # ADR-0004: Use AWS for Cloud
 
 Status: Accepted  
-Date: 2026-11-24
+Date: 2026-11-26
 
 ## Context and Problem Statement
 
-Which Cloud technology does the project use? Decided in architecture v1.
+Which Cloud technology does the project use? Decided in architecture v2.
 
 ## Considered Options
 
@@ -16,9 +16,9 @@ Which Cloud technology does the project use? Decided in architecture v1.
 
 ## Decision Outcome
 
-Chosen option: AWS, because A single account hosts the SPA, API, worker, RDS PostgreSQL, Redis and S3 for the original uploaded files in one region near staff, with encryption at rest and in transit.
+Chosen option: AWS, because Hosts the SPA, API, worker, RDS PostgreSQL, Redis and S3 document storage in one account and region near staff; S3 durably holds the original uploads behind citations.
 
 ## Consequences
 
-Ties the deployment to AWS-managed services; acceptable for an internal tool with no stated multi-cloud or residency requirement.
+Single-cloud lock-in is acceptable for an internal tool; no data-residency constraint was stated so region is engineering's choice.
 <!-- sdlc:auto:end adr -->

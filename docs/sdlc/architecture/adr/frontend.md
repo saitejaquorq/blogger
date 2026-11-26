@@ -2,11 +2,11 @@
 # ADR-0001: Use React 19 for Frontend
 
 Status: Accepted  
-Date: 2026-11-24
+Date: 2026-11-26
 
 ## Context and Problem Statement
 
-Which Frontend technology does the project use? Decided in architecture v1.
+Which Frontend technology does the project use? Decided in architecture v2.
 
 ## Considered Options
 
@@ -16,9 +16,9 @@ Which Frontend technology does the project use? Decided in architecture v1.
 
 ## Decision Outcome
 
-Chosen option: React 19, because Delivered as a responsive SPA on its own origin that stores the opaque session token and streams Claude answers with citations into the chat thread, plus the admin document screen.
+Chosen option: React 19, because Delivered as a single responsive SPA for the streaming chat and admin document screens; stores the opaque session token and sends it as Authorization: Bearer, reading the API base URL from VITE_API_BASE_URL since the SPA and API are separate origins.
 
 ## Consequences
 
-A SPA needs its own build/host and cannot share cookies with the API, so sessions ride as Authorization: Bearer tokens rather than browser cookies.
+A separate SPA origin means CORS and token handling in the client rather than cookie sessions; acceptable and required by the two-origin deployment.
 <!-- sdlc:auto:end adr -->

@@ -2,23 +2,23 @@
 # ADR-0002: Use FastAPI 0.115 for Backend
 
 Status: Accepted  
-Date: 2026-11-24
+Date: 2026-11-26
 
 ## Context and Problem Statement
 
-Which Backend technology does the project use? Decided in architecture v1.
+Which Backend technology does the project use? Decided in architecture v2.
 
 ## Considered Options
 
 - FastAPI 0.115
-- Django
 - Flask
+- Django REST Framework
 
 ## Decision Outcome
 
-Chosen option: FastAPI 0.115, because Python hosts the Anthropic and Voyage SDKs and FastAPI's streaming responses suit the chat experience; it orchestrates retrieval, Claude calls, auth and enqueuing indexing jobs.
+Chosen option: FastAPI 0.115, because Python backend orchestrates RAG and streams Claude responses with server-sent events; the strongest ecosystem for the Anthropic and Voyage SDKs. Also runs the arq worker process for async indexing.
 
 ## Consequences
 
-Async orchestration plus a separate RQ worker is more moving parts than a single sync app, but keeps uploads from blocking admins.
+Async code and a separate worker process add a little operational surface, but keep uploads non-blocking for the admin.
 <!-- sdlc:auto:end adr -->

@@ -9,15 +9,12 @@ Pushes to `main` run `.github/workflows/deploy.yml`, which builds the API image 
 <!-- sdlc:auto:start environments -->
 | Name | Service | Runtime | Scaling | Environment |
 |---|---|---|---|---|
-| SPA Host | React 19 static build (S3 + CloudFront, its own origin) | Static assets | CDN-cached | dev |
-| API Service | FastAPI 0.115 under Uvicorn (ECS Fargate / single container) | Python 3.12 | 1-2 small tasks for ~50 users | dev |
-| Indexing Worker | RQ worker (same image, worker command) | Python 3.12 | 1 task | dev |
-| PostgreSQL | Amazon RDS for PostgreSQL 16 with pgvector | PostgreSQL 16 | Single instance | dev |
-| Redis | Redis 7 (redis:7-alpine) for the job queue | Redis 7 | Single node | dev |
-| S3 Bucket | Amazon S3 document store | Managed | Managed | dev |
-| Anthropic Claude | Claude API | External SaaS | Managed | dev |
-| Voyage AI | Voyage embeddings API | External SaaS | Managed | dev |
-| SMTP Server | SMTP relay for reset/invite email | External SaaS | Managed | dev |
+| Web SPA | React 19 static build on S3 + CloudFront (SPA origin) | Static assets | CDN-cached, single bucket | dev |
+| API Service | FastAPI 0.115 on ECS Fargate (API origin, separate host) | Python 3.12 / uvicorn | 1-2 small tasks for ~50 users | dev |
+| Indexing Worker | FastAPI 0.115 arq worker on ECS Fargate | Python 3.12 | 1 task | dev |
+| PostgreSQL | Amazon RDS for PostgreSQL 16 with pgvector | PostgreSQL 16 | single small instance, encryption at rest enabled | dev |
+| Redis | Redis 7 (redis:7-alpine) on ECS / ElastiCache | Redis 7 | single node | dev |
+| Document Store | Amazon S3 bucket | Object storage | managed, private bucket, server-side encryption | dev |
 <!-- sdlc:auto:end environments -->
 
 <!-- sdlc:auto:start live -->
@@ -27,25 +24,18 @@ _Not deployed yet._
 <!-- sdlc:auto:start topology -->
 ```mermaid
 graph LR
-  n_SPA_Host["SPA Host<br/>React 19 static build (S3 + CloudFront, its own origin)"]
-  n_API_Service["API Service<br/>FastAPI 0.115 under Uvicorn (ECS Fargate / single container)"]
-  n_Indexing_Worker["Indexing Worker<br/>RQ worker (same image, worker command)"]
+  n_Web_SPA["Web SPA<br/>React 19 static build on S3 + CloudFront (SPA origin)"]
+  n_API_Service["API Service<br/>FastAPI 0.115 on ECS Fargate (API origin, separate host)"]
+  n_Indexing_Worker["Indexing Worker<br/>FastAPI 0.115 arq worker on ECS Fargate"]
   n_PostgreSQL["PostgreSQL<br/>Amazon RDS for PostgreSQL 16 with pgvector"]
-  n_Redis["Redis<br/>Redis 7 (redis:7-alpine) for the job queue"]
-  n_S3_Bucket["S3 Bucket<br/>Amazon S3 document store"]
-  n_Anthropic_Claude["Anthropic Claude<br/>Claude API"]
-  n_Voyage_AI["Voyage AI<br/>Voyage embeddings API"]
-  n_SMTP_Server["SMTP Server<br/>SMTP relay for reset/invite email"]
-  n_SPA_Host -->|"HTTPS (Authorization: Bearer)"| n_API_Service
-  n_API_Service -->|"TCP/TLS"| n_PostgreSQL
-  n_API_Service -->|"TCP"| n_Redis
-  n_API_Service -->|"HTTPS"| n_S3_Bucket
-  n_API_Service -->|"HTTPS"| n_Anthropic_Claude
-  n_API_Service -->|"HTTPS"| n_Voyage_AI
-  n_API_Service -->|"SMTP/TLS"| n_SMTP_Server
-  n_Indexing_Worker -->|"TCP"| n_Redis
-  n_Indexing_Worker -->|"TCP/TLS"| n_PostgreSQL
-  n_Indexing_Worker -->|"HTTPS"| n_S3_Bucket
-  n_Indexing_Worker -->|"HTTPS"| n_Voyage_AI
+  n_Redis["Redis<br/>Redis 7 (redis:7-alpine) on ECS / ElastiCache"]
+  n_Document_Store["Document Store<br/>Amazon S3 bucket"]
+  n_Web_SPA -->|"HTTPS (Authorization: Bearer)"| n_API_Service
+  n_API_Service -->|"TLS/5432"| n_PostgreSQL
+  n_API_Service -->|"TCP/6379"| n_Redis
+  n_API_Service -->|"HTTPS (S3 API)"| n_Document_Store
+  n_Indexing_Worker -->|"TCP/6379"| n_Redis
+  n_Indexing_Worker -->|"TLS/5432"| n_PostgreSQL
+  n_Indexing_Worker -->|"HTTPS (S3 API)"| n_Document_Store
 ```
 <!-- sdlc:auto:end topology -->

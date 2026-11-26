@@ -2,47 +2,17 @@
 openapi: 3.1.0
 info:
   title: blogger
-  version: architecture-v1
+  version: architecture-v2
   description: Designed API from the approved architecture (not extracted from code).
 paths:
-  /auth/me:
-    get:
-      summary: Return the signed-in user; used by the SPA to guard routes and redirect
-        unauthenticated users to sign-in.
-      description: Return the signed-in user; used by the SPA to guard routes and
-        redirect unauthenticated users to sign-in.
-      operationId: get_auth_me
-      parameters: []
-      responses:
-        '200':
-          description: '{ id, email, role }'
-      security:
-      - bearerAuth: []
-  /auth/password-reset/request:
+  /auth/login:
     post:
-      summary: Send a password-reset email via SMTP for the given address (always
-        202, no account enumeration).
-      description: Send a password-reset email via SMTP for the given address (always
-        202, no account enumeration).
-      operationId: post_auth_password_reset_request
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              description: '{ email }'
-      responses:
-        '200':
-          description: '{ accepted: true }'
-  /auth/sign-in:
-    post:
-      summary: 'Authenticate by email and password; returns an opaque session token
-        in the body. Invalid credentials return 401 without '
-      description: Authenticate by email and password; returns an opaque session token
-        in the body. Invalid credentials return 401 without revealing which field
+      summary: Sign in with email and password; returns an opaque session token in
+        the body. Generic invalid-credentials message does n
+      description: Sign in with email and password; returns an opaque session token
+        in the body. Generic invalid-credentials message does not reveal which field
         was wrong.
-      operationId: post_auth_sign_in
+      operationId: post_auth_login
       parameters: []
       requestBody:
         content:
@@ -53,29 +23,72 @@ paths:
       responses:
         '200':
           description: '{ token, user: { id, email, role } }'
-  /auth/sign-out:
+  /auth/logout:
     post:
-      summary: Revoke the current session so the token can no longer reach protected
-        pages.
-      description: Revoke the current session so the token can no longer reach protected
-        pages.
-      operationId: post_auth_sign_out
+      summary: Revoke the current session server-side.
+      description: Revoke the current session server-side.
+      operationId: post_auth_logout
       parameters: []
       requestBody:
         content:
           application/json:
             schema:
               type: object
-              description: empty
+              description: none (Bearer token)
       responses:
         '200':
-          description: '{ success: true }'
+          description: 204 No Content
       security:
       - bearerAuth: []
+  /auth/me:
+    get:
+      summary: Return the signed-in user and role; validates session active, not expired,
+        account active.
+      description: Return the signed-in user and role; validates session active, not
+        expired, account active.
+      operationId: get_auth_me
+      parameters: []
+      responses:
+        '200':
+          description: '{ id, email, role }'
+      security:
+      - bearerAuth: []
+  /auth/password-reset/confirm:
+    post:
+      summary: Set a new password from a reset token; stores only the bcrypt hash.
+      description: Set a new password from a reset token; stores only the bcrypt hash.
+      operationId: post_auth_password_reset_confirm
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{ reset_token, new_password }'
+      responses:
+        '200':
+          description: 204 No Content
+  /auth/password-reset/request:
+    post:
+      summary: Send a password-reset email via SMTP to the given address if it matches
+        an account.
+      description: Send a password-reset email via SMTP to the given address if it
+        matches an account.
+      operationId: post_auth_password_reset_request
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: '{ email }'
+      responses:
+        '200':
+          description: 202 Accepted
   /conversations:
     get:
-      summary: List the signed-in user's own saved conversations.
-      description: List the signed-in user's own saved conversations.
+      summary: List the signed-in user's own conversations (private to the user).
+      description: List the signed-in user's own conversations (private to the user).
       operationId: get_conversations
       parameters: []
       responses:
@@ -84,8 +97,8 @@ paths:
       security:
       - bearerAuth: []
     post:
-      summary: Start a new conversation for the signed-in user.
-      description: Start a new conversation for the signed-in user.
+      summary: Create a new conversation for the signed-in user.
+      description: Create a new conversation for the signed-in user.
       operationId: post_conversations
       parameters: []
       requestBody:
@@ -99,13 +112,13 @@ paths:
           description: '{ id, title }'
       security:
       - bearerAuth: []
-  /conversations/{id}:
+  /conversations/{id}/messages:
     get:
-      summary: Return a conversation with its messages and citations; only the owner
-        may read it.
-      description: Return a conversation with its messages and citations; only the
-        owner may read it.
-      operationId: get_conversations_id
+      summary: List messages and citations in the user's own conversation; 404/403
+        if not theirs.
+      description: List messages and citations in the user's own conversation; 404/403
+        if not theirs.
+      operationId: get_conversations_id_messages
       parameters:
       - name: id
         in: path
@@ -114,16 +127,15 @@ paths:
           type: string
       responses:
         '200':
-          description: '{ id, title, messages: [ { role, content, citations } ] }'
+          description: '[ { id, role, content, citations } ]'
       security:
       - bearerAuth: []
-  /conversations/{id}/messages:
     post:
-      summary: Submit a question; retrieves passages, calls Claude, and streams a
-        grounded answer with citations into the thread. Retur
-      description: Submit a question; retrieves passages, calls Claude, and streams
-        a grounded answer with citations into the thread. Returns an informative error
-        if Claude is unavailable, leaving the question in the conversation.
+      summary: 'Ask a question: persist it, retrieve passages, call Claude, stream
+        the grounded cited answer. Returns an informative err'
+      description: 'Ask a question: persist it, retrieve passages, call Claude, stream
+        the grounded cited answer. Returns an informative error message if Claude
+        is unavailable, leaving the question in the thread.'
       operationId: post_conversations_id_messages
       parameters:
       - name: id
@@ -136,19 +148,18 @@ paths:
           application/json:
             schema:
               type: object
-              description: '{ question }'
+              description: '{ content }'
       responses:
         '200':
-          description: text/event-stream of answer tokens then { answer, citations
-            }
+          description: text/event-stream of answer tokens then persisted assistant
+            message with citations
       security:
       - bearerAuth: []
   /documents:
     get:
-      summary: List knowledge-base documents with name, format and status (processing,
-        ready, failed). Admin only.
-      description: List knowledge-base documents with name, format and status (processing,
-        ready, failed). Admin only.
+      summary: List knowledge-base documents with name, format and status (admin only).
+      description: List knowledge-base documents with name, format and status (admin
+        only).
       operationId: get_documents
       parameters: []
       responses:
@@ -157,10 +168,11 @@ paths:
       security:
       - bearerAuth: []
     post:
-      summary: Upload a PDF, .docx, .txt or .md file; validates format, stores the
-        original in S3, records metadata and enqueues indexi
-      description: Upload a PDF, .docx, .txt or .md file; validates format, stores
-        the original in S3, records metadata and enqueues indexing. Admin only.
+      summary: Upload a PDF/Word/text/Markdown file (admin only); validates format,
+        stores original in S3, enqueues indexing, returns p
+      description: Upload a PDF/Word/text/Markdown file (admin only); validates format,
+        stores original in S3, enqueues indexing, returns processing status. Rejects
+        unsupported formats with the supported list.
       operationId: post_documents
       parameters: []
       requestBody:
@@ -171,15 +183,15 @@ paths:
               description: multipart/form-data file
       responses:
         '200':
-          description: '{ id, name, format, status }'
+          description: 202 { id, name, format, status }
       security:
       - bearerAuth: []
   /documents/{id}:
     put:
-      summary: Replace a document with a new file; removes prior chunks/embeddings
-        from retrieval and re-indexes the new content. Admin
-      description: Replace a document with a new file; removes prior chunks/embeddings
-        from retrieval and re-indexes the new content. Admin only.
+      summary: Replace an existing document with a new file (admin only); removes
+        old chunks/embeddings and indexes the new version und
+      description: Replace an existing document with a new file (admin only); removes
+        old chunks/embeddings and indexes the new version under the same record.
       operationId: put_documents_id
       parameters:
       - name: id
@@ -195,14 +207,14 @@ paths:
               description: multipart/form-data file
       responses:
         '200':
-          description: '{ id, status }'
+          description: 202 { id, status }
       security:
       - bearerAuth: []
     delete:
-      summary: Delete a document and all its chunks and embeddings so it can no longer
-        be retrieved or cited. Admin only.
-      description: Delete a document and all its chunks and embeddings so it can no
-        longer be retrieved or cited. Admin only.
+      summary: Delete a document and enqueue removal of all its chunks and embeddings
+        from retrieval (admin only).
+      description: Delete a document and enqueue removal of all its chunks and embeddings
+        from retrieval (admin only).
       operationId: delete_documents_id
       parameters:
       - name: id
@@ -212,7 +224,7 @@ paths:
           type: string
       responses:
         '200':
-          description: '{ success: true }'
+          description: 204 No Content
       security:
       - bearerAuth: []
 components:
@@ -263,9 +275,6 @@ components:
           type: string
           format: date-time
         expires_at:
-          type: string
-          format: date-time
-        revoked_at:
           type: string
           format: date-time
       required:

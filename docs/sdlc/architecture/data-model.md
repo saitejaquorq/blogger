@@ -22,7 +22,6 @@
 | created_at | timestamptz | False | — | False |
 | last_seen_at | timestamptz | False | — | False |
 | expires_at | timestamptz | False | — | False |
-| revoked_at | timestamptz | False | — | True |
 
 ### documents
 
@@ -86,11 +85,10 @@
 | users | sessions | one-to-many |
 | users | conversations | one-to-many |
 | users | documents | one-to-many |
-| documents | document_chunks | one-to-many |
 | conversations | messages | one-to-many |
+| documents | document_chunks | one-to-many |
 | messages | message_citations | one-to-many |
 | documents | message_citations | one-to-many |
-| document_chunks | message_citations | one-to-many |
 <!-- sdlc:auto:end relationships -->
 
 <!-- sdlc:auto:start er-diagram -->
@@ -111,7 +109,6 @@ erDiagram
     timestamptz created_at
     timestamptz last_seen_at
     timestamptz expires_at
-    timestamptz revoked_at
   }
   documents {
     uuid id PK
@@ -156,10 +153,9 @@ erDiagram
   users ||--o{ sessions : "one-to-many"
   users ||--o{ conversations : "one-to-many"
   users ||--o{ documents : "one-to-many"
-  documents ||--o{ document_chunks : "one-to-many"
   conversations ||--o{ messages : "one-to-many"
+  documents ||--o{ document_chunks : "one-to-many"
   messages ||--o{ message_citations : "one-to-many"
   documents ||--o{ message_citations : "one-to-many"
-  document_chunks ||--o{ message_citations : "one-to-many"
 ```
 <!-- sdlc:auto:end er-diagram -->
