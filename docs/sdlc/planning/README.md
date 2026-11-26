@@ -5,81 +5,81 @@
 <!-- sdlc:auto:start narrative -->
 ### EPIC-001 · approved · source: planning:EPIC-001
 
-Staff Authentication and Role-Based Access.
+Restricts all chatbot access to signed-in staff via email/password accounts, with no public or anonymous access, and gates document management behind an admin role.
 
-All access to the chatbot is restricted to signed-in staff via email/password accounts; no public or anonymous access. An admin role governs who can manage documents; session and sign-in security are expressed as verifiable outcomes.
+Goal: all access to the chatbot is restricted to signed-in staff; session and sign-in security and admin-role gating are expressed as user/admin-verifiable outcomes. Stories: US-001 (sign in with email/password), US-002 (restrict access to authenticated users), US-003 (admin role governs document management), US-004 (end sessions on sign-out and expiry).
 
 **Related:** US-001, US-002, US-003, US-004
 
 ### EPIC-002 · approved · source: planning:EPIC-002
 
-Document Management and Knowledge Base.
+Admins build and maintain a single shared knowledge base by uploading, replacing, and deleting documents in PDF, Word, plain text, and Markdown formats.
 
-Admins build and maintain a single shared knowledge base by uploading PDF, Word (.docx), plain text and Markdown documents; they can add, replace and delete documents, and deletion removes content from retrieval so stale information is no longer used. Assumption: single shared collection visible to all staff, no per-document/per-user access restriction in this scope.
+Goal: admins manage a single shared document collection; deleting a document removes its content from retrieval so stale information stops being used. Assumption noted: the knowledge base has no per-document or per-user access restriction in this scope. Stories: US-005 (upload supported formats), US-006 (replace an existing document), US-007 (delete a document and remove it from retrieval), US-008 (view knowledge base contents and status).
 
 **Related:** US-005, US-006, US-007, US-008
 
 ### EPIC-003 · approved · source: planning:EPIC-003
 
-Document Chunking and Embedding.
+Uploaded documents are automatically chunked and converted into vector embeddings via Voyage AI, stored in a vector-capable datastore, so content can be retrieved at query time.
 
-Uploaded documents are automatically split into passages and converted to vector embeddings via Voyage AI (requiring VOYAGE_API_KEY) so relevant content can be retrieved at query time, held in a vector-capable datastore (PostgreSQL + pgvector). Hosting/region left to engineering, no stated data-residency requirement.
+Goal: automatic chunking and embedding without manual preparation, using Voyage AI as the embedding provider and a vector-capable datastore (e.g. PostgreSQL with pgvector). Assumptions surfaced: requires an embedding-provider API key (e.g. VOYAGE_API_KEY); hosting/region left to engineering with no stated data-residency requirement. Stories: US-009 (automatically chunk and embed uploaded content), US-010 (configure the embedding provider credential).
 
 **Related:** US-009, US-010
 
 ### EPIC-004 · approved · source: planning:EPIC-004
 
-RAG Chat and Grounded Answers.
+Staff ask questions in a conversational chat interface; the system retrieves relevant passages from the knowledge base, sends them with the question to the Anthropic Claude API, and returns a grounded, cited answer.
 
-Staff ask questions through a conversational chat interface; the system retrieves the most relevant passages from the shared knowledge base, sends them with the question to the Anthropic Claude API (requiring ANTHROPIC_API_KEY), and returns an answer grounded in that content with citations back to the originating document/passage.
+Goal: deliver retrieval-augmented answers grounded in the shared knowledge base with citations back to source documents and passages. Assumptions surfaced: answer generation uses the Anthropic Claude API and requires ANTHROPIC_API_KEY; answers must cite the documents/passages they draw from. Stories: US-011 (ask a question through the chat interface), US-012 (retrieve relevant passages for a question), US-013 (generate grounded answers with Claude), US-014 (cite source documents and passages).
 
 **Related:** US-011, US-012, US-013, US-014
 
 ### EPIC-005 · approved · source: planning:EPIC-005
 
-Per-User Conversation History.
+Each staff member's conversations are saved and available to them across sessions, with history kept private to the individual user.
 
-Each staff member's conversations with the chatbot are saved and available to them across sessions. History is private to the individual user; conversation history is saved per user and not shared between users.
+Goal: persist per-user conversation history and keep it private, not shared between users. Assumption surfaced: conversation history is saved per user and is not shared between users. Stories: US-015 (save conversations per user), US-016 (keep conversation history private to the user).
 
 **Related:** US-015, US-016
 
-### SPRINT-1 · approved · source: planning:plan:Sprint 1
+### Sprint 1 · approved · source: planning:Sprint 1
 
-Sprint 1 (capacity 20): core sign-in, authenticated-only access, and admin-role gating for document management.
+First sprint (capacity 20) stands up authentication, session lifecycle, and admin-role gating so all later features can sit behind sign-in.
 
-Stories: US-001 Sign in with email and password (5 pts, backend-agent); US-002 Restrict access to authenticated users (8 pts, backend-agent) with tasks US-002-T1 auth dependency rejecting unauthenticated API requests (backend-agent), US-002-T2 route guards/sign-in redirects in React (frontend-agent), US-002-T3 tests confirming unauthenticated access rejected on UI and API (qa-agent); US-003 Admin role governs document management (5 pts, backend-agent).
+Goal: 'Stand up authentication, session lifecycle and admin-role gating so every later feature can sit behind sign-in.' Capacity: 20 points. Story-to-sprint mapping is inferred from the goal text, which corresponds to EPIC-001's stories US-001 (5 pts, backend-agent), US-002 (5 pts, backend-agent), US-003 (3 pts, backend-agent), US-004 (5 pts, backend-agent) -- totaling 18 of the 20-point capacity; no explicit sprint assignment table was provided in the input.
 
-**Related:** US-001, US-002, US-003
+**Related:** EPIC-001, US-001, US-002, US-003, US-004
 
-### SPRINT-2 · approved · source: planning:plan:Sprint 2
+### Sprint 2 · approved · source: planning:Sprint 2
 
-Sprint 2 (capacity 20): session expiry/deactivation, document upload, embedding-key configuration, and knowledge-base listing.
+Second sprint (capacity 20) enables document upload, secure embedding-provider configuration, and visibility into the knowledge base.
 
-Stories: US-004 End sessions on sign-out and expiry (5 pts, backend-agent); US-005 Upload documents in supported formats (8 pts, backend-agent) with tasks US-005-T1 upload endpoint (backend-agent), US-005-T2 admin upload UI with format validation and status list (frontend-agent), US-005-T3 tests covering accepted/rejected upload formats (qa-agent); US-008 View the shared knowledge base contents (3 pts, frontend-agent); US-010 Configure the embedding provider credential (3 pts, devops-agent).
+Goal: 'Enable document upload, secure embedding-provider configuration, and visibility into the knowledge base.' Capacity: 20 points. Inferred from goal text: US-005 upload (8 pts, backend-agent, with tasks US-005-T1/T2/T3), US-008 view knowledge base contents (3 pts, frontend-agent), US-010 configure embedding provider credential (3 pts, devops-agent) -- totaling 14 of 20 points. No explicit sprint assignment table was provided in the input.
 
-**Related:** US-004, US-005, US-008, US-010
+**Related:** EPIC-002, EPIC-003, US-005, US-008, US-010
 
-### SPRINT-3 · approved · source: planning:plan:Sprint 3
+### Sprint 3 · approved · source: planning:Sprint 3
 
-Sprint 3 (capacity 20): automatic chunking and embedding pipeline, and document replace.
+Third sprint (capacity 20) automatically chunks and embeds documents, and supports replacing/deleting content safely.
 
-Stories: US-009 Automatically chunk and embed uploaded content (13 pts, integration-agent) with tasks US-009-T1 text extraction for PDF/Word/text/Markdown (backend-agent), US-009-T2 chunking + Voyage AI embedding pipeline (integration-agent), US-009-T3 Redis queue job processing with status updates (devops-agent), US-009-T4 handle missing/invalid embedding credential and provider errors (backend-agent); US-006 Replace an existing document (5 pts, backend-agent).
+Goal: 'Automatically chunk and embed documents, and support replacing/deleting content safely.' Capacity: 20 points. Inferred from goal text: US-009 automatic chunking/embedding (8 pts, backend-agent, with tasks US-009-T1/T2/T3), US-006 replace a document (5 pts, backend-agent), US-007 delete a document (5 pts, backend-agent) -- totaling 18 of 20 points. No explicit sprint assignment table was provided in the input.
 
-**Related:** US-009, US-006
+**Related:** EPIC-002, EPIC-003, US-006, US-007, US-009
 
-### SPRINT-4 · approved · source: planning:plan:Sprint 4
+### Sprint 4 · approved · source: planning:Sprint 4
 
-Sprint 4 (capacity 20): document deletion, conversational chat interface, and per-user saved/private history.
+Fourth sprint (capacity 20) delivers the end-to-end RAG chat experience: retrieval, Claude-grounded answers, and citations.
 
-Stories: US-007 Delete a document and remove it from retrieval (5 pts, backend-agent); US-011 Ask a question through the chat interface (8 pts, frontend-agent) with tasks US-011-T1 conversation/message API endpoints (backend-agent), US-011-T2 build responsive chat UI (frontend-agent), US-011-T3 e2e test for asking a question and receiving a reply (qa-agent); US-015 Save conversations per user (3 pts, backend-agent); US-016 Keep conversation history private to the user (3 pts, backend-agent).
+Goal: 'Deliver the end-to-end RAG chat experience: retrieval, Claude-grounded answers and citations.' Capacity: 20 points. Inferred from goal text: US-011 ask a question (5 pts, frontend-agent), US-012 retrieve relevant passages (5 pts, backend-agent), US-013 generate grounded answers with Claude (5 pts, integration-agent), US-014 cite source documents and passages (3 pts, frontend-agent) -- totaling 18 of 20 points. No explicit sprint assignment table was provided in the input.
 
-**Related:** US-007, US-011, US-015, US-016
+**Related:** EPIC-004, US-011, US-012, US-013, US-014
 
-### SPRINT-5 · approved · source: planning:plan:Sprint 5
+### Sprint 5 · approved · source: planning:Sprint 5
 
-Sprint 5 (capacity 20): relevant-passage retrieval, Claude-grounded answers, and source citations.
+Fifth sprint (capacity 20) persists and protects each user's conversation history.
 
-Stories: US-012 Retrieve relevant passages for a question (5 pts, integration-agent); US-013 Generate grounded answers with Claude (8 pts, integration-agent) with tasks US-013-T1 Claude API integration for grounded answers (integration-agent), US-013-T2 Claude failure handling (backend-agent), US-013-T3 wire streaming answer delivery into chat UI (frontend-agent); US-014 Cite source documents and passages (5 pts, backend-agent).
+Goal: 'Persist and protect each user's conversation history.' Capacity: 20 points. Inferred from goal text: US-015 save conversations per user (5 pts, backend-agent), US-016 keep conversation history private to the user (3 pts, backend-agent) -- totaling 8 of 20 points. No explicit sprint assignment table was provided in the input.
 
-**Related:** US-012, US-013, US-014
+**Related:** EPIC-005, US-015, US-016
 <!-- sdlc:auto:end narrative -->

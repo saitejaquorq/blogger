@@ -6,19 +6,19 @@ Date: 2026-11-26
 
 ## Context and Problem Statement
 
-Which Cloud technology does the project use? Decided in architecture v2.
+Which Cloud technology does the project use? Decided in architecture v1.
 
 ## Considered Options
 
 - AWS
-- Azure
 - GCP
+- Azure
 
 ## Decision Outcome
 
-Chosen option: AWS, because Hosts the SPA, API, worker, RDS PostgreSQL, Redis and S3 document storage in one account and region near staff; S3 durably holds the original uploads behind citations.
+Chosen option: AWS, because Approved stack. Hosts the SPA, the FastAPI API and worker, RDS PostgreSQL, Redis, and S3 for original documents in one account, in a region near staff.
 
 ## Consequences
 
-Single-cloud lock-in is acceptable for an internal tool; no data-residency constraint was stated so region is engineering's choice.
+Single-cloud coupling; acceptable for an internal tool. Encryption at rest on RDS and S3 and TLS in transit protect the stored documents and credentials.
 <!-- sdlc:auto:end adr -->

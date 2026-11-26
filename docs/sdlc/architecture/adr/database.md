@@ -6,7 +6,7 @@ Date: 2026-11-26
 
 ## Context and Problem Statement
 
-Which Database technology does the project use? Decided in architecture v2.
+Which Database technology does the project use? Decided in architecture v1.
 
 ## Considered Options
 
@@ -16,9 +16,9 @@ Which Database technology does the project use? Decided in architecture v2.
 
 ## Decision Outcome
 
-Chosen option: PostgreSQL 16, because One store holds users, roles, sessions, conversations, document metadata and, via the pgvector extension, the embeddings and similarity search — no second database for this modest document volume.
+Chosen option: PostgreSQL 16, because Approved stack. One store holds users, sessions, document metadata, conversations, and — via the pgvector extension — the chunk embeddings, so retrieval needs no separate vector service at this modest volume.
 
 ## Consequences
 
-pgvector at very large scale would need tuning, but ~50 users and modest documents sit well within a single small instance.
+pgvector similarity search is ample for ~50 users and a modest corpus; a dedicated vector DB would only matter at much larger scale, which is out of scope.
 <!-- sdlc:auto:end adr -->

@@ -6,19 +6,19 @@ Date: 2026-11-26
 
 ## Context and Problem Statement
 
-Which Backend technology does the project use? Decided in architecture v2.
+Which Backend technology does the project use? Decided in architecture v1.
 
 ## Considered Options
 
 - FastAPI 0.115
+- Django
 - Flask
-- Django REST Framework
 
 ## Decision Outcome
 
-Chosen option: FastAPI 0.115, because Python backend orchestrates RAG and streams Claude responses with server-sent events; the strongest ecosystem for the Anthropic and Voyage SDKs. Also runs the arq worker process for async indexing.
+Chosen option: FastAPI 0.115, because Approved stack. Python gives first-class Anthropic and Voyage libraries, and FastAPI's streaming responses suit a chat experience. It orchestrates embed-retrieve-generate and enqueues indexing work.
 
 ## Consequences
 
-Async code and a separate worker process add a little operational surface, but keep uploads non-blocking for the admin.
+Async orchestration and background work must be structured carefully; long-running indexing is offloaded to a separate worker rather than blocking request handlers.
 <!-- sdlc:auto:end adr -->

@@ -19,9 +19,10 @@
 | id | uuid | True | — | False |
 | user_id | uuid | False | users.id | False |
 | token_hash | text | False | — | False |
-| created_at | timestamptz | False | — | False |
-| last_seen_at | timestamptz | False | — | False |
 | expires_at | timestamptz | False | — | False |
+| last_active_at | timestamptz | False | — | False |
+| revoked_at | timestamptz | False | — | True |
+| created_at | timestamptz | False | — | False |
 
 ### documents
 
@@ -45,7 +46,7 @@
 | document_id | uuid | False | documents.id | False |
 | chunk_index | integer | False | — | False |
 | content | text | False | — | False |
-| embedding | vector | False | — | False |
+| embedding | vector(1024) | False | — | False |
 | created_at | timestamptz | False | — | False |
 
 ### conversations
@@ -54,7 +55,7 @@
 |---|---|---|---|---|
 | id | uuid | True | — | False |
 | user_id | uuid | False | users.id | False |
-| title | text | False | — | False |
+| title | text | False | — | True |
 | created_at | timestamptz | False | — | False |
 | updated_at | timestamptz | False | — | False |
 
@@ -83,10 +84,10 @@
 | Source | Target | Type |
 |---|---|---|
 | users | sessions | one-to-many |
-| users | conversations | one-to-many |
 | users | documents | one-to-many |
-| conversations | messages | one-to-many |
+| users | conversations | one-to-many |
 | documents | document_chunks | one-to-many |
+| conversations | messages | one-to-many |
 | messages | message_citations | one-to-many |
 | documents | message_citations | one-to-many |
 <!-- sdlc:auto:end relationships -->
@@ -106,9 +107,10 @@ erDiagram
     uuid id PK
     uuid user_id FK
     text token_hash
-    timestamptz created_at
-    timestamptz last_seen_at
     timestamptz expires_at
+    timestamptz last_active_at
+    timestamptz revoked_at
+    timestamptz created_at
   }
   documents {
     uuid id PK
@@ -126,7 +128,7 @@ erDiagram
     uuid document_id FK
     integer chunk_index
     text content
-    vector embedding
+    vector_1024_ embedding
     timestamptz created_at
   }
   conversations {
@@ -151,10 +153,10 @@ erDiagram
     text snippet
   }
   users ||--o{ sessions : "one-to-many"
-  users ||--o{ conversations : "one-to-many"
   users ||--o{ documents : "one-to-many"
-  conversations ||--o{ messages : "one-to-many"
+  users ||--o{ conversations : "one-to-many"
   documents ||--o{ document_chunks : "one-to-many"
+  conversations ||--o{ messages : "one-to-many"
   messages ||--o{ message_citations : "one-to-many"
   documents ||--o{ message_citations : "one-to-many"
 ```

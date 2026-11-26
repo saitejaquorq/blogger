@@ -5,139 +5,139 @@
 <!-- sdlc:auto:start narrative -->
 ## Summary
 
-### REQ-STACK · approved · source: requirements:technology stack
+### REQ-STACK · approved · source: requirements:stack
 
-Approved technology stack for the lightweight RAG chatbot, fixed by the product owner.
+Product owner approved an exact technology stack for a lightweight internal RAG chatbot: FastAPI backend, AWS hosting, PostgreSQL database, React frontend.
 
-- Backend: FastAPI 0.115 -- orchestrates RAG (retrieve, call Claude, stream cited answer); Python ecosystem is strongest for Anthropic/embedding libraries and supports streaming.
-- Cloud: AWS -- single account/region hosting for web app, database and document storage (incl. S3), no data-residency rule stated.
-- Database: PostgreSQL 16 -- single store for users, roles, conversation history, document metadata and (via pgvector) embeddings, avoiding a separate vector service.
-- Frontend: React 19 -- single responsive SPA for streaming chat plus admin document management; mobile/voice explicitly out of scope.
+- Backend: FastAPI 0.115 — orchestrates RAG (fetch passages, call Claude, stream cited answer); Python has the strongest Anthropic/embedding libraries; sufficient for ~50 users.
+- Cloud: AWS — hosts web app, database and file storage (S3 for PDFs/Word) in one account; no data-residency rule stated so region is a free choice.
+- Database: PostgreSQL 16 — single store for users, roles, conversation history, document metadata, and (via pgvector) embeddings, avoiding a separate vector service at this volume.
+- Frontend: React 19 — supports the streaming chat UI and an admin document-management screen; platform standard; mobile/voice explicitly out of scope so one responsive web app suffices.
 
-### REQ-SERVICES · approved · source: requirements:runtime_needs
+### REQ-SERVICES · approved · source: requirements:services
 
-Approved external/runtime services and the credentials each requires.
+Six runtime services/dependencies were approved, each with its required configuration.
 
-- Ai provider: Anthropic (Claude), SaaS, env ANTHROPIC_API_KEY -- generates grounded, cited replies.
-- Embeddings: Voyage AI, SaaS, env VOYAGE_API_KEY -- turns chunks into vectors for retrieval; Anthropic's recommended embedding partner.
-- Vector store: pgvector inside PostgreSQL (known) -- avoids a second database for modest volume.
-- File storage: Amazon S3, SaaS, env AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_REGION/S3_BUCKET -- durable storage of originals for re-processing/citation source.
-- Queue: Redis (as a queue), container redis:7-alpine -- background chunk/embed work so admins aren't blocked; also drives reliable deletion from retrieval.
-- Email: SMTP server, SaaS, env SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD -- password-reset and account-invite email for low-volume email/password sign-in.
-Full API key list required: ANTHROPIC_API_KEY, AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY, REDIS_URL, S3_BUCKET, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USER, VOYAGE_API_KEY.
+- AI provider: Anthropic (Claude), SaaS, env ANTHROPIC_API_KEY — generates grounded, cited replies.
+- Embeddings: Voyage AI, SaaS, env VOYAGE_API_KEY — turns chunks/questions into vectors; Anthropic's recommended embedding partner.
+- Vector store: pgvector inside PostgreSQL (known) — avoids a second database for a modest document volume.
+- File storage: Amazon S3, SaaS, env AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_REGION/S3_BUCKET — durable storage of originals for re-processing/citation.
+- Queue: Redis (container redis:7-alpine) — background chunking/embedding so admins aren't blocked, and reliable removal of deleted content from retrieval.
+- Email: SMTP server, env SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD — password-reset and account-invite email for email/password sign-in.
+Full required API keys/env list: ANTHROPIC_API_KEY, AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY, REDIS_URL, S3_BUCKET, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USER, VOYAGE_API_KEY.
 
 ### REQ-SCOPE · approved · source: requirements:scope
 
-Delivery scope is lightweight; defines what is being built (v1) and what is explicitly excluded.
+Delivery scope is lightweight: a shared-knowledge-base chatbot with document management, excluding mobile/voice and external connectors.
 
-In scope: chat interface for asking questions; retrieval of relevant passages from uploaded documents; Claude-generated grounded answers; source citations to document and passage; document upload (PDF, Word, text, Markdown); automatic chunking and embedding; shared knowledge base of indexed content; add/replace/delete documents; removal of deleted content from retrieval; per-user saved conversation history; signed-in access for staff; Anthropic Claude for answers; Voyage AI for embeddings.
-Out of scope: native mobile/desktop apps; voice input; automated connectors to external systems (SharePoint, Confluence, Google Drive, website crawling).
+In scope: chat interface for asking questions; retrieval of relevant passages from uploaded documents; Claude-generated grounded answers; source citations to document/passage; document upload (PDF, Word, text, Markdown); automatic chunking and embedding; shared knowledge base of indexed content; add/replace/delete documents; removal of deleted content from retrieval; per-user saved conversation history; signed-in access for staff; Anthropic Claude for generation; Voyage AI for embeddings.
+Out of scope: native mobile/desktop apps, voice input, and automated connectors to external systems (SharePoint, Confluence, Google Drive, website crawling).
 
-### REQ-FEAT-SIGNIN · approved · source: requirements:Sign-in & accounts
+### REQ-FEAT-AUTH · approved · source: requirements:feature:sign-in-accounts
 
-Email/password authentication, sign-out, and admin-only gating of document management.
+Email/password sign-in, sign-out, and admin-only gating of document management.
 
-- Sign in with email and password: correct credentials open the chat interface; non-matching credentials show a generic invalid-credentials message without revealing which field was wrong.
+- Sign in with email and password: correct credentials open the chat interface; mismatched credentials show a generic invalid-credentials message without revealing which field was wrong.
 - Sign out: ends the session so the user must sign in again to reach any protected page.
-- Admin-only document management: non-admin staff are denied the document area but keep chat access; admins can add, replace and delete documents.
+- Admin-only document management: non-admin staff are denied access to the document area but retain chat access; admins can add, replace and delete documents.
 
-### REQ-FEAT-ASKING · approved · source: requirements:Asking questions
+### REQ-FEAT-CHAT · approved · source: requirements:feature:asking-questions
 
-Core question-asking flow: chat input, passage retrieval, and grounded answer generation.
+Core question-asking flow: conversational chat, passage retrieval, and Claude-generated answers.
 
-- Ask a question in chat: a signed-in staff member's message appears in the thread and the system produces an answer in the same conversation.
-- Find relevant passages: the system uses document embeddings to retrieve the most relevant passages from the shared knowledge base.
-- Generate grounded answers: the question and retrieved passages are sent to the Anthropic Claude API and the resulting answer is returned in the chat, grounded in the knowledge base.
+- Ask a question in chat: a signed-in staff member types a question, it appears in the thread, and the system produces an answer in the same conversation.
+- Find relevant passages: the system uses document embeddings to retrieve the most relevant passages from the shared knowledge base for the question.
+- Generate grounded answers: the question and retrieved passages are sent to the Anthropic Claude API, and the resulting answer is returned in the chat, grounded in knowledge-base content.
 
-### REQ-FEAT-ANSWERS · approved · source: requirements:Answers & citations
+### REQ-FEAT-ANSWERS · approved · source: requirements:feature:answers-citations
 
-Handling of no-match cases and citation of sources for every generated answer.
+Answers must be honest about missing knowledge and show verifiable citations.
 
-- Say when nothing relevant is found: when no sufficiently relevant passage exists, the answer states the knowledge base does not contain information on the topic, rather than inventing content.
-- Show source citations: each generated answer shows citations identifying the originating document and passage(s), clear enough to locate and verify the referenced content.
+- Say when nothing relevant is found: when no sufficiently relevant passage exists, the answer states the knowledge base lacks information on the topic rather than inventing content.
+- Show source citations: each generated answer shows citations identifying the originating document and passage(s), clear enough for the reader to locate and verify.
 
-### REQ-FEAT-HISTORY · approved · source: requirements:Conversation history
+### REQ-FEAT-HISTORY · approved · source: requirements:feature:conversation-history
 
-Per-user persistence and retrieval of past conversations.
+Each user's conversations persist across sessions and can be browsed.
 
-- Save conversations per user: questions and answers are saved so they remain available after signing out and back in.
+- Save conversations per user: questions and answers are saved so they remain available after sign-out/sign-in.
 - View and reopen past conversations: a user with more than one saved conversation can see their history and reopen each one.
 
-### REQ-FEAT-DOCMGMT · approved · source: requirements:Document management
+### REQ-FEAT-DOCMGMT · approved · source: requirements:feature:document-management
 
-Admin capabilities to upload, replace, delete and review documents in the shared knowledge base.
+Admins upload, replace, delete and monitor documents in the shared knowledge base.
 
-- Upload documents in supported formats: PDF, Word (.docx), plain text or Markdown are accepted, stored and listed with name and status; unsupported formats are rejected with a message stating supported formats.
-- Replace an existing document: previous content is removed from retrieval, new content is indexed, later answers use the new version and no longer cite the superseded content.
-- Delete a document: removes the document plus all its chunks and embeddings so it can no longer be retrieved or cited.
-- View knowledge base and status: admin sees each document's name, format and status (processing, ready, failed) so failed items can be retried or removed.
+- Upload documents in supported formats: PDF, Word (.docx), text or Markdown files are accepted, stored and listed with name and status; unsupported formats are rejected with a message stating the supported formats.
+- Replace an existing document: previous content is removed from retrieval and the new content is indexed; later answers draw on the new version only.
+- Delete a document: removes the document and all its chunks/embeddings so content can no longer be retrieved or cited.
+- View knowledge base and status: admins see each document's name, format and status (processing, ready, failed) so failed items can be retried or removed.
 
-### REQ-FEAT-INDEXING · approved · source: requirements:Document indexing
+### REQ-FEAT-INDEX · approved · source: requirements:feature:document-indexing
 
 Automatic chunking/embedding pipeline and secure configuration of the embedding provider key.
 
-- Automatic chunking and embedding: after text extraction, the system splits the document into passages, converts each to an embedding via Voyage AI, stores embeddings in the vector datastore, and marks the document ready for retrieval once all passages are stored.
-- Configure the embedding provider key: an admin/operator configures the Voyage AI key securely; when not configured, indexing reports embedding is unavailable instead of marking the document ready.
+- Automatic chunking and embedding: after text extraction, the document is split into passages, each converted to an embedding via Voyage AI and stored in the vector datastore; once all passages are stored the document is marked ready for retrieval.
+- Configure the embedding provider key: an admin/operator configures the Voyage AI key securely; if not configured, indexing reports embedding is unavailable instead of marking the document ready.
 
 ### NFR-001 · approved · source: requirements:NFR-001
 
-[security] Passwords are persisted only as secure hashes, never in plain text or reversible form.
+[security] Passwords are stored only as secure hashes, never in plain text or reversible form.
 
-User account passwords are stored only as a secure hash; no plain-text or reversible storage is permitted.
+User account passwords are persisted only as a secure hash and are never stored in plain text or in any reversible form.
 
 ### NFR-002 · approved · source: requirements:NFR-002
 
-[security] Only signed-in staff can reach chat or document content.
+[security] Only signed-in staff can reach any chat/document content or API.
 
-Anyone not signed in is redirected to the sign-in page and cannot see chat or document pages; API requests for knowledge-base content or answers are rejected as unauthenticated when not signed in.
+Anyone not signed in is sent to the sign-in page and cannot see chat or document pages; API requests for knowledge-base content or answers are rejected as unauthenticated.
 
 ### NFR-003 · approved · source: requirements:NFR-003
 
 [security] Sessions end on sign-out, inactivity timeout, or admin deactivation.
 
-A session ends when the user signs out, when inactive beyond the configured session lifetime, or when an admin deactivates the account; in every case the person must sign in again to reach any protected page.
+A session ends when the user signs out, when it has been inactive beyond the configured session lifetime, and when an admin deactivates the account; the user must sign in again afterward to reach any protected page.
 
 ### NFR-004 · approved · source: requirements:NFR-004
 
-[privacy] Conversation history is private to the user who created it.
+[privacy] Conversation history is private to each user, even across browser sessions.
 
-Saved conversation history is visible only to the creating staff member; it is never visible to another user, including after a different user signs in on the same browser.
+Saved conversation history is visible only to the staff member who created it; a user never sees another user's conversations, including after a different user signs in on the same browser.
 
 ### NFR-005 · approved · source: requirements:NFR-005
 
 [usability] Chat interface is responsive and usable on smaller screens.
 
-The chat interface is delivered as a responsive web application that adapts to screen size and remains usable on smaller screens.
+The chat interface is delivered as a responsive web application that adapts to screen size and stays usable on smaller screens.
 
 ### NFR-006 · approved · source: requirements:NFR-006
 
-[availability] Graceful degradation when Claude or the embedding provider fails.
+[availability] Graceful handling of AI/embedding service failures.
 
-If the Claude answer service is unavailable or errors, the user sees an informative message and their question stays in the conversation to retry. If the embedding provider key is missing or the provider errors, the document is marked failed with an informative status, and no partially processed document is treated as ready.
+When Claude is unavailable or errors, the user sees an informative message and the question stays in the conversation to retry. When the embedding provider key is missing or the provider errors, the document is marked failed with an informative status, and no partially processed document is treated as ready.
 
 ### NFR-007 · approved · source: requirements:NFR-007
 
-[scalability] Sized for an internal tool of roughly 50 staff and modest document volume, not enterprise scale.
+[scalability] Sized for an internal tool, not enterprise scale.
 
-Target: up to ~50 staff; not designed for enterprise-scale load.
+The system is sized for up to roughly 50 staff with a modest document volume, not enterprise-scale load.
 
 ### NFR-008 · approved · source: requirements:NFR-008
 
-[security] Service credentials (Claude, embedding provider, others) supplied via secure configuration, not hard-coded.
+[security] Service credentials supplied via secure configuration, not hard-coded.
 
-Keys are supplied through secure configuration rather than hard-coded; when the embedding key is absent the system reports indexing is unavailable instead of silently marking documents ready.
+Embedding provider, Claude, and other service keys are supplied through secure configuration rather than hard-coded; when the embedding key is absent, the system reports indexing unavailable instead of silently marking documents ready.
 
 ### NFR-009 · approved · source: requirements:NFR-009
 
-[privacy] (Accepted risk) Single shared knowledge base with no per-document or per-user access restriction.
+[privacy] (Accepted risk) Single shared knowledge base with no per-document/per-user access restriction.
 
-The knowledge base is one shared collection queryable by all staff; there is no per-document or per-user access restriction in this scope -- explicitly accepted as a risk.
+The knowledge base is a single shared collection that all staff can query; there is no per-document or per-user access restriction in this scope. Recorded as an accepted risk, not a defect.
 
 ### NFR-010 · approved · source: requirements:NFR-010
 
-[compliance] (Accepted risk) No data-residency or regulatory regime stated; hosting region/compliance left to engineering judgement.
+[compliance] (Accepted risk) No stated data-residency or regulatory regime; hosting region/compliance controls left to engineering judgement.
 
-No data-residency requirement and no special regulatory or compliance regime were stated for this general-industry internal tool; hosting region and compliance controls are left to engineering judgement -- explicitly accepted as a risk. No industry-specific regulation (e.g. HIPAA) was named in the input.
+No data-residency requirement and no special regulatory or compliance regime were stated for this general-industry internal tool, so hosting region and compliance controls are left to engineering judgement.
 <!-- sdlc:auto:end narrative -->
 
 <!-- sdlc:auto:start summary -->
